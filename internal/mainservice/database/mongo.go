@@ -2,6 +2,9 @@ package database
 
 import (
 	"context"
+	"log"
+
+	"financial-Assistant/internal/mainservice/models"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -26,7 +29,7 @@ func NewMongoClient() (*MongoClient, error) {
 	if err := client.Ping(context.Background(), nil); err != nil {
 		return nil, err
 	}
-
+	log.Println("estamos en crear client", err)
 	return &MongoClient{client: client}, nil
 }
 
@@ -34,17 +37,9 @@ func (mc *MongoClient) Disconnect() error {
 	return mc.client.Disconnect(context.Background())
 }
 
-func (mc *MongoClient) InsertUser(user *User) error {
-	collection := mc.client.Database("your-database-name").Collection("users")
+func (mc *MongoClient) InsertUser(user *models.Request) error {
+	log.Println("Estamos en Insert")
+	collection := mc.client.Database("Budget-AI").Collection("users")
 	_, err := collection.InsertOne(context.Background(), user)
 	return err
-}
-
-type User struct {
-	Name string `bson:"name"`
-	Age  int    `bson:"age"`
-}
-
-func main() {
-
 }

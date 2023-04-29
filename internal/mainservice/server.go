@@ -14,12 +14,6 @@ func NewServer() *Server {
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		if err := client.Disconnect(); err != nil {
-			panic(err)
-		}
-	}()
-
 	return &Server{
 		mongoDB: client,
 	}
