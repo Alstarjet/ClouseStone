@@ -1,18 +1,26 @@
 package mainservice
 
 import (
-	"net/http"
-
-	"github.com/gorilla/mux"
+	"financial-Assistant/internal/mainservice/database"
 )
 
+type Server struct {
+	mongoDB *database.MongoClient
+}
+
 // NewRouter crea un nuevo router Gorilla Mux y configura sus rutas.
-func NewRouter() *mux.Router {
-	router := mux.NewRouter().StrictSlash(true)
+func NewServer() *Server {
+	client, err := database.NewMongoClient()
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := client.Disconnect(); err != nil {
+			panic(err)
+		}
+	}()
 
-	router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
-	}).Methods("GET")
-
-	return router
+	return &Server{
+		mongoDB: client,
+	}
 }
