@@ -37,9 +37,10 @@ func (mc *MongoClient) Disconnect() error {
 	return mc.client.Disconnect(context.Background())
 }
 
-func (mc *MongoClient) InsertUser(user *models.Request) error {
+func (mc *MongoClient) InsertUser(user *models.Request) (interface{}, error) {
 	log.Println("Estamos en Insert")
 	collection := mc.client.Database("Budget-AI").Collection("users")
-	_, err := collection.InsertOne(context.Background(), user)
-	return err
+	req, err := collection.InsertOne(context.Background(), user)
+	log.Println(req)
+	return req.InsertedID, err
 }
