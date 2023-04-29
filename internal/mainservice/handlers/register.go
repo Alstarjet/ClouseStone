@@ -19,10 +19,17 @@ func Register(db *database.MongoClient) http.Handler {
 		var newData models.Request
 		req, _ := ioutil.ReadAll(r.Body)
 		_ = json.Unmarshal(req, &newData)
-		err := db.InsertUser(&newData)
+		reques, err := db.InsertUser(&newData)
 		if err != nil {
 			log.Println(err)
 		}
-		w.Write([]byte("Hello, World!2"))
+		respJSON, err := json.Marshal(reques)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(respJSON)
 	})
 }
