@@ -6,10 +6,8 @@ type GeneralInfo struct {
 }
 
 type Income struct {
-	Fixed       int `json:"fixed" validate:"required"`
-	Variable    int `json:"variable"`
-	Investments int `json:"investments"`
-	Other       int `json:"other" validate:"required"`
+	Fixed int `json:"fixed" validate:"required"`
+	Other int `json:"other" validate:"required"`
 }
 
 type Lifestyle struct {
@@ -78,4 +76,19 @@ type Request struct {
 	FinancialGoals FinancialGoals `json:"financialGoals"`
 	AdditionalInfo AdditionalInfo `json:"additionalInfo"`
 	Hobbies        Hobbies        `json:"hobbies"`
+}
+type Doc struct {
+	GeneralInfo    []float64
+	Income         []float64
+	Lifestyle      []float64
+	Streaming      []float64
+	Personal       []float64
+	Assets         []float64
+	FinancialGoals []float64
+	AdditionalInfo []float64
+	Hobbies        []float64
+}
+type Mutate struct {
+	Base   Request
+	BaseID string
 }

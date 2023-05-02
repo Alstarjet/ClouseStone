@@ -4,22 +4,40 @@ import (
 	"encoding/json"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 )
 
-func Hello() http.Handler {
+func Hello(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!2"))
+		updateReq := r.Context().Value("Email").(string)
+		fmt.Println("estamos en hello", updateReq)
+		user, err := db.FindUser(updateReq)
+		fmt.Println("Esto salio de mongo", user)
+		if err != nil || user.Email == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("Error en Usuario o Contraseña"))
+			return
+		}
+		w.Write([]byte("Hello, tu token es correcto"))
 	})
 }
 func Register(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var newData models.Request
-		req, _ := ioutil.ReadAll(r.Body)
+		var newData models.User
+		req, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(req, &newData)
-		reques, err := db.InsertUser(&newData)
+		user, err := db.FindUser(newData.Email)
+		if err == nil && user.Email != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("Email ya en Uso, prueba con otro"))
+			return
+		}
+		reques, err := db.RegisterUser(&newData)
 		if err != nil {
 			log.Println(err)
 		}
