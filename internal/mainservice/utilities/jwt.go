@@ -11,7 +11,7 @@ import (
 func GenerateToken(payload models.DataJWT, secretKey string) (string, error) {
 	// Set token claims
 	claims := jwt.MapClaims{
-		"exp": time.Now().Add(time.Minute * 3).Unix(),
+		"exp": time.Now().Add(time.Minute * 30).Unix(),
 	}
 
 	claims["email"] = payload.Email

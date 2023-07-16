@@ -4,9 +4,6 @@ import (
 	"context"
 	"log"
 
-	"financial-Assistant/internal/mainservice/models"
-
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -36,29 +33,4 @@ func NewMongoClient() (*MongoClient, error) {
 
 func (mc *MongoClient) Disconnect() error {
 	return mc.client.Disconnect(context.Background())
-}
-
-func (mc *MongoClient) InsertUser(user *models.Request) (interface{}, error) {
-	log.Println("Estamos en Insert")
-	collection := mc.client.Database("Budget-AI").Collection("users")
-	req, err := collection.InsertOne(context.Background(), user)
-	log.Println(req)
-	return req.InsertedID, err
-}
-func (mc *MongoClient) RegisterUser(user *models.User) (interface{}, error) {
-	log.Println("Estamos en Insert")
-	collection := mc.client.Database("Agenda-StoneMoon").Collection("users")
-	req, err := collection.InsertOne(context.Background(), user)
-	log.Println(req)
-	return req.InsertedID, err
-}
-func (mc *MongoClient) FindUser(email string) (models.User, error) {
-	filter := bson.M{"email": email}
-	collection := mc.client.Database("Agenda-StoneMoon").Collection("users")
-	var reques models.User
-	err := collection.FindOne(context.Background(), filter).Decode(&reques)
-	if err != nil {
-		log.Println(err)
-	}
-	return reques, err
 }

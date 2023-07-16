@@ -32,8 +32,17 @@ func Login(db *database.MongoClient) http.Handler {
 			dataJWT.Email = user.Email
 			dataJWT.Name = user.Name
 			respJSON, _ := utilities.GenerateToken(dataJWT, "TTE68sTTuasd")
+			responce := models.JWTresponce{
+				Toke:  respJSON,
+				Hello: "Exito",
+			}
+			jsonResponse, err := json.Marshal(responce)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(respJSON))
+			w.Write([]byte(jsonResponse))
 			return
 		}
 		w.WriteHeader(http.StatusBadRequest)

@@ -11,3 +11,8 @@ type DataJWT struct {
 	Email string
 	Name  string
 }
+
+type JWTresponce struct {
+	Toke  string `json:"token"`
+	Hello string `json:"hello"`
+}
