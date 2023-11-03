@@ -1,4 +1,4 @@
-package payments
+package charges
 
 import (
 	"financial-Assistant/internal/mainservice/database"
@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-func PaymentsUpdate(db *database.MongoClient, payments []models.Payment, user models.User) ([]models.MonthReport, error) {
-	paymentsForClient := PaymentsForClientFunc(payments)
+func ChargesUpdate(db *database.MongoClient, charges []models.Charge, user models.User) ([]models.MonthReport, error) {
+	chargesForClient := ChargesForClientFunc(charges)
 	//mes actual
 	timeNow := time.Now()
 	year := timeNow.Year()
@@ -20,7 +20,7 @@ func PaymentsUpdate(db *database.MongoClient, payments []models.Payment, user mo
 	monthAfter := int(lastMonth.Month())
 	var errors []error
 	var updatesReports []models.MonthReport
-	for _, client := range paymentsForClient {
+	for _, client := range chargesForClient {
 		var defaultReport models.MonthReport
 		previusReport, err := reports.FindOrCreateReport(db, user.Email, client.ClientUuid, yearAfter, monthAfter, defaultReport)
 		if err != nil {
@@ -34,7 +34,7 @@ func PaymentsUpdate(db *database.MongoClient, payments []models.Payment, user mo
 			errors = append(errors, err)
 			continue
 		}
-		upReport, err := AddNewPayments(db, client.Payments, currentReport, previusReport)
+		upReport, err := AddNewCharges(db, client.Charges, currentReport, previusReport)
 		if err != nil {
 			fmt.Println("Error alguardar los pagos", err)
 			errors = append(errors, err)
@@ -43,40 +43,40 @@ func PaymentsUpdate(db *database.MongoClient, payments []models.Payment, user mo
 		updatesReports = append(updatesReports, upReport)
 	}
 	if len(errors) > 0 {
-		return updatesReports, fmt.Errorf("error al guardar paymentes")
+		return updatesReports, fmt.Errorf("error al guardar chargees")
 	}
 	return updatesReports, nil
 }
-func PaymentsForClientFunc(payments []models.Payment) []models.PaymentsForClient {
-	var arraysPayments []models.PaymentsForClient
-	for _, payment := range payments {
+func ChargesForClientFunc(charges []models.Charge) []models.ChargesForClient {
+	var arraysCharges []models.ChargesForClient
+	for _, charge := range charges {
 		found := false
-		for i, array := range arraysPayments {
-			if payment.ClientUuid == array.ClientUuid {
-				arraysPayments[i].Payments = append(array.Payments, payment)
+		for i, array := range arraysCharges {
+			if charge.ClientUuid == array.ClientUuid {
+				arraysCharges[i].Charges = append(array.Charges, charge)
 				found = true
 				break
 			}
 		}
 		if !found {
-			var client models.PaymentsForClient
-			client.ClientUuid = payment.ClientUuid
-			client.Payments = append(client.Payments, payment)
-			arraysPayments = append(arraysPayments, client)
+			var client models.ChargesForClient
+			client.ClientUuid = charge.ClientUuid
+			client.Charges = append(client.Charges, charge)
+			arraysCharges = append(arraysCharges, client)
 		}
 	}
-	return arraysPayments
+	return arraysCharges
 }
 
-func AddNewPayments(db *database.MongoClient, payments []models.Payment, currentReport models.MonthReport, previusReport models.MonthReport) (models.MonthReport, error) {
+func AddNewCharges(db *database.MongoClient, charges []models.Charge, currentReport models.MonthReport, previusReport models.MonthReport) (models.MonthReport, error) {
 	//Verificamos que los pago no los registraramos previamente en el mes anteior y este, y por error de comunicasion front-back se estan
 	//re-enviado, contemplamos el mes anterior por si el error sucede el 31 del mes y no se intenta reintegrar los datos.
-	newPayments := CheckNewPayments(payments, previusReport)
-	fmt.Println("Paym Last", newPayments)
-	newPayments = CheckNewPayments(newPayments, currentReport)
-	fmt.Println("Paym Curre", newPayments)
+	newCharges := CheckNewCharges(charges, previusReport)
+	fmt.Println("Paym Last", newCharges)
+	newCharges = CheckNewCharges(newCharges, currentReport)
+	fmt.Println("Paym Curre", newCharges)
 
-	currentReport.Payments = append(currentReport.Payments, newPayments...)
+	currentReport.Charges = append(currentReport.Charges, newCharges...)
 
 	//subimos los cambios al reporte
 	_, err := db.UpdateReport(&currentReport)
@@ -87,21 +87,21 @@ func AddNewPayments(db *database.MongoClient, payments []models.Payment, current
 	return currentReport, err
 }
 
-func CheckNewPayments(payments []models.Payment, report models.MonthReport) []models.Payment {
-	var newPayments []models.Payment
-	for _, payment := range payments {
-		// Verificar si el ID del pago coincide con algún otro pago en report.payments
+func CheckNewCharges(charges []models.Charge, report models.MonthReport) []models.Charge {
+	var newCharges []models.Charge
+	for _, charge := range charges {
+		// Verificar si el ID del pago coincide con algún otro pago en report.charges
 		found := false
-		for _, reportPayment := range report.Payments {
-			if payment.Uuid == reportPayment.Uuid {
+		for _, reportCharge := range report.Charges {
+			if charge.Uuid == reportCharge.Uuid {
 				found = true
 				break // Si ya encontramos una coincidencia, podemos salir del bucle interno
 			}
 		}
 		if !found {
-			// No se encontró coincidencia, agregar el pago a newPayments
-			newPayments = append(newPayments, payment)
+			// No se encontró coincidencia, agregar el pago a newCharges
+			newCharges = append(newCharges, charge)
 		}
 	}
-	return newPayments
+	return newCharges
 }

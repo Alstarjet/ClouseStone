@@ -2,7 +2,7 @@ package models
 
 type ClientRegister struct {
 	Name       string `json:"name"`
-	ClientUuid string `json:"uuid"`
+	ClientUuid string `json:"clientuuid"`
 	Address    string `json:"address"`
 	Phone      int    `json:"phone"`
 	DayWork    string `json:"daywork"`

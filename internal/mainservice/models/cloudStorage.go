@@ -1,7 +1,11 @@
 package models
 
 type RequestUpload struct {
-	Clients  []ClientRegister
-	Payments []Payment
-	Charges  []Charge
+	Clients  []ClientRegister `json:"clients"`
+	Payments []Payment        `json:"payments"`
+	Charges  []Charge         `json:"charges"`
+}
+type BackupResponse struct {
+	Message string        `json:"message"`
+	Reports []MonthReport `json:"reports"`
 }

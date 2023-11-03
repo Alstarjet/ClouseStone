@@ -12,7 +12,7 @@ func NewRouter(server *Server) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.Handle("/hello", AuthMiddleware(handlers.Hello(server.mongoDB))).Methods(http.MethodPost)
-	router.Handle("/addClient", AuthMiddleware(handlers.AddClient(server.mongoDB))).Methods(http.MethodPost)
+	router.Handle("/UploadData", AuthMiddleware(handlers.UploadDataSchedule(server.mongoDB))).Methods(http.MethodPost)
 	router.Handle("/addPayment", AuthMiddleware(handlers.AddPayment(server.mongoDB))).Methods(http.MethodPost)
 
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)

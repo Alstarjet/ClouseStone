@@ -13,7 +13,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		fmt.Println(authHeader, " aqui vamos")
 		if authHeader == "" {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte("Missing Authorization header"))
 			return
@@ -22,7 +22,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// Check if Authorization header has Bearer token
 		auth := strings.Split(authHeader, " ")
 		if len(auth) != 2 || auth[0] != "Bearer" {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte("Invalid Authorization header format"))
 			return
@@ -30,7 +30,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		info, _ := utilities.DecodeToken(auth[1], "TTE68sTTuasd")
 		if info == nil {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte("Tu token no sirve"))
 			return

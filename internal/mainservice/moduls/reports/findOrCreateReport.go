@@ -15,7 +15,11 @@ func FindOrCreateReport(db *database.MongoClient, userEmail string, clientUuid s
 			monthReport.ClientUuid = clientUuid
 			monthReport.UserEmail = userEmail
 			monthReport.ID = primitive.NewObjectID()
+			monthReport.Month = month
+			monthReport.Year = year
 			monthReport.LastDebt = lastDebtCalculator(AfterReport)
+			monthReport.Charges = []models.Charge{}
+			monthReport.Payments = []models.Payment{}
 			_, err := db.AddReport(&monthReport)
 			if err != nil {
 				return monthReport, err

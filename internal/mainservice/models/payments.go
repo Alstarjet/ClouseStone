@@ -18,7 +18,6 @@ type MonthReport struct {
 }
 type Payment struct {
 	ClientUuid string    `json:"clientuuid"`
-	ClientName string    `json:"clientname"`
 	Uuid       string    `json:"uuid"`
 	Amount     float64   `json:"amount"`
 	Method     string    `json:"method"`
@@ -27,8 +26,8 @@ type Payment struct {
 }
 type Charge struct {
 	ClientUuid string    `json:"clientuuid"`
-	ClientName string    `json:"clientname"`
-	Product    Product   `json:"product"`
+	Uuid       string    `json:"uuid"`
+	Products   []Product `json:"products"`
 	Discount   float64   `json:"discount"`
 	FinalPrice float64   `json:"finalprice"`
 	Date       time.Time `json:"date"`
@@ -37,4 +36,9 @@ type Charge struct {
 type PaymentsForClient struct {
 	ClientUuid string
 	Payments   []Payment
+}
+
+type ChargesForClient struct {
+	ClientUuid string
+	Charges    []Charge
 }
