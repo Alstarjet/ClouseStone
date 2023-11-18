@@ -12,7 +12,6 @@ func FindOrCreateReport(db *database.MongoClient, userEmail string, clientUuid s
 	monthReport, err := db.FindReport(userEmail, clientUuid, year, month)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			monthReport.ClientUuid = clientUuid
 			monthReport.UserEmail = userEmail
 			monthReport.ID = primitive.NewObjectID()
 			monthReport.Month = month

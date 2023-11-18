@@ -6,6 +6,6 @@ type RequestUpload struct {
 	Charges  []Charge         `json:"charges"`
 }
 type BackupResponse struct {
-	Message string        `json:"message"`
-	Reports []MonthReport `json:"reports"`
+	Message string `json:"message"`
+	Status  int    `json:"reports"`
 }

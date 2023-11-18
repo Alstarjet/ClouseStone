@@ -105,3 +105,25 @@ func CheckNewPayments(payments []models.Payment, report models.MonthReport) []mo
 	}
 	return newPayments
 }
+
+func PaymentsForMonth(payments []models.Payment) []models.PaymentsForMonth {
+	var arraysPayments []models.PaymentsForMonth
+	for _, payment := range payments {
+		found := false
+		for i, array := range arraysPayments {
+			if int(payment.Date.Month()) == array.Month && int(payment.Date.Year()) == array.Year {
+				arraysPayments[i].Payments = append(array.Payments, payment)
+				found = true
+				break
+			}
+		}
+		if !found {
+			var dateSlice models.PaymentsForMonth
+			dateSlice.Month = int(payment.Date.Month())
+			dateSlice.Year = int(payment.Date.Year())
+			dateSlice.Payments = append(dateSlice.Payments, payment)
+			arraysPayments = append(arraysPayments, dateSlice)
+		}
+	}
+	return arraysPayments
+}

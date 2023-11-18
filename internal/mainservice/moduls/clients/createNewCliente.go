@@ -5,7 +5,6 @@ import (
 	"financial-Assistant/internal/mainservice/models"
 	"fmt"
 	"log"
-	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -26,24 +25,8 @@ func ClientsUpload(db *database.MongoClient, clients []models.ClientRegister, us
 func CreateNewCliente(db *database.MongoClient, newClient models.ClientRegister, user models.User) bool {
 	_, err := db.FindClient(user.Email, newClient.ClientUuid, newClient.Name)
 	if err == mongo.ErrNoDocuments {
-		var newReport models.MonthReport
 		newClient.UserEmail = user.Email
-		timeNow := time.Now()
-		year := timeNow.Year()
-		month := int(timeNow.Month())
 		_, err = db.AddClient(newClient)
-		if err != nil {
-			log.Println(err)
-			return false
-		}
-		newReport.ClientUuid = newClient.ClientUuid
-		newReport.LastDebt = 0
-		newReport.Month = month
-		newReport.Year = year
-		newReport.UserEmail = user.Email
-		newReport.Charges = []models.Charge{}
-		newReport.Payments = []models.Payment{}
-		_, err = db.AddReport(&newReport)
 		if err != nil {
 			log.Println(err)
 			return false

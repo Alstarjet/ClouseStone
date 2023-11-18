@@ -12,6 +12,8 @@ type MongoClient struct {
 	client *mongo.Client
 }
 
+const DataBase = "CloudStoneProd"
+
 func NewMongoClient() (*MongoClient, error) {
 	// Use the SetServerAPIOptions() method to set the Stable API version to 1
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)

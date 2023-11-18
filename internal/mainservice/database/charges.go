@@ -9,24 +9,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func (mc *MongoClient) AddReport(report *models.MonthReport) (interface{}, error) {
-	collection := mc.client.Database(DataBase).Collection("reports")
+const charges = "charges"
+
+func (mc *MongoClient) AddMonthCharges(report *models.MonthCharges) (interface{}, error) {
+	collection := mc.client.Database(DataBase).Collection(charges)
 	req, err := collection.InsertOne(context.Background(), report)
 	log.Println(req)
 	return req.InsertedID, err
 }
-func (mc *MongoClient) FindReport(useremail string, clientuuid string, year int, month int) (models.MonthReport, error) {
-	filter := bson.M{"useremail": useremail, "clientuuid": clientuuid, "year": year, "month": month}
-	collection := mc.client.Database(DataBase).Collection("reports")
-	var reques models.MonthReport
+func (mc *MongoClient) FindMonthCharges(useremail string, year int, month int) (models.MonthCharges, error) {
+	filter := bson.M{"useremail": useremail, "year": year, "month": month}
+	collection := mc.client.Database(DataBase).Collection(charges)
+	var reques models.MonthCharges
 	err := collection.FindOne(context.Background(), filter).Decode(&reques)
 	if err != nil {
 		return reques, err
 	}
 	return reques, nil
 }
-func (mc *MongoClient) UpdateReport(updatedReport *models.MonthReport) (*mongo.UpdateResult, error) {
-	collection := mc.client.Database(DataBase).Collection("reports")
+func (mc *MongoClient) UpdateMonthCharges(updatedReport *models.MonthCharges) (*mongo.UpdateResult, error) {
+	collection := mc.client.Database(DataBase).Collection(charges)
 
 	filter := bson.M{"_id": updatedReport.ID} // Filtrar por ID del reporte a actualizar
 

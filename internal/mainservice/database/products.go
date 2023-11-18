@@ -9,14 +9,14 @@ import (
 )
 
 func (mc *MongoClient) AddProduct(user *models.Product) (interface{}, error) {
-	collection := mc.client.Database("Agenda-StoneMoon").Collection("products")
+	collection := mc.client.Database(DataBase).Collection("products")
 	req, err := collection.InsertOne(context.Background(), user)
 	log.Println(req)
 	return req.InsertedID, err
 }
 func (mc *MongoClient) FindProduct(key string) (models.Product, error) {
 	filter := bson.M{"key": key}
-	collection := mc.client.Database("Agenda-StoneMoon").Collection("products")
+	collection := mc.client.Database(DataBase).Collection("products")
 	var reques models.Product
 	err := collection.FindOne(context.Background(), filter).Decode(&reques)
 	if err != nil {
@@ -25,7 +25,7 @@ func (mc *MongoClient) FindProduct(key string) (models.Product, error) {
 	return reques, err
 }
 func (mc *MongoClient) FindAllProducts() ([]models.Product, error) {
-	collection := mc.client.Database("Agenda-StoneMoon").Collection("products")
+	collection := mc.client.Database(DataBase).Collection("products")
 	var products []models.Product
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
