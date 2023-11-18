@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"log"
+	"os"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -12,12 +13,12 @@ type MongoClient struct {
 	client *mongo.Client
 }
 
-const DataBase = "CloudStoneProd"
+var DataBase = os.Getenv("DATA_BASE_MONGO")
 
 func NewMongoClient() (*MongoClient, error) {
 	// Use the SetServerAPIOptions() method to set the Stable API version to 1
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	opts := options.Client().ApplyURI("mongodb+srv://AlbertStar:e89hbwfk7LpOJYel@cluster0.qvrviuf.mongodb.net/?retryWrites=true&w=majority").SetServerAPIOptions(serverAPI)
+	opts := options.Client().ApplyURI(os.Getenv("DATA_BASE_APPLY_URI")).SetServerAPIOptions(serverAPI)
 
 	// Create a new client and connect to the server
 	client, err := mongo.Connect(context.TODO(), opts)
