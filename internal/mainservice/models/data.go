@@ -8,8 +8,9 @@ type DataLogin struct {
 	Password string `json:"password"`
 }
 type DataJWT struct {
-	Email string
-	Name  string
+	UserMongoID string
+	Email       string
+	Name        string
 }
 
 type JWTresponce struct {

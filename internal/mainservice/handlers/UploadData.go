@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
-	"financial-Assistant/internal/mainservice/moduls/charges"
 	"financial-Assistant/internal/mainservice/moduls/clients"
-	"financial-Assistant/internal/mainservice/moduls/payments"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -37,24 +36,14 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		err = clients.ClientsUpload(db, newData.Clients, user)
+		fmt.Println(user)
+		clietsIDs, err := clients.ClientsUploadStone(db, newData.Clients, user)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		err = payments.PaymentsUpdateStone(db, newData.Payments, user)
-		if err != nil {
-			log.Println(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		err = charges.ChargesUpdateStone(db, newData.Charges, user)
-		if err != nil {
-			log.Println(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		fmt.Println(clietsIDs, "Tacos al Pastor")
 
 		response := models.BackupResponse{
 			Message: "Datos Respaldados con Éxito",

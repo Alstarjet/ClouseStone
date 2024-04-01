@@ -3,24 +3,30 @@ package database
 import (
 	"context"
 	"financial-Assistant/internal/mainservice/models"
-	"log"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (mc *MongoClient) AddClient(client models.ClientRegister) (interface{}, error) {
-	collection := mc.client.Database(DataBase).Collection("clients")
+const clients = "clients"
+
+func (mc *MongoClient) AddClient(client models.Client) (interface{}, error) {
+	client.ID = primitive.NewObjectID()
+	collection := mc.client.Database(DataBase).Collection(clients)
 	req, err := collection.InsertOne(context.Background(), client)
-	log.Println(req)
 	return req.InsertedID, err
 }
-func (mc *MongoClient) FindClient(useremail string, clientuuid string, name string) (models.ClientRegister, error) {
-	filter := bson.M{"useremail": useremail, "clientuuid": clientuuid, "name": name}
-	collection := mc.client.Database(DataBase).Collection("clients")
-	var reques models.ClientRegister
-	err := collection.FindOne(context.Background(), filter).Decode(&reques)
+func (mc *MongoClient) FindClient(filter interface{}) (models.Client, error) {
+	collection := mc.client.Database(DataBase).Collection(clients)
+	var result models.Client
+	err := collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
-		return reques, err
+		return models.Client{}, err
 	}
-	return reques, nil
+	return result, nil
+}
+
+func (mc *MongoClient) UpdateClient(filter interface{}, update interface{}) error {
+	collection := mc.client.Database(DataBase).Collection(clients)
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }

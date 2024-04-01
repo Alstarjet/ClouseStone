@@ -11,26 +11,26 @@ import (
 
 const payments = "payments"
 
-func (mc *MongoClient) AddMonthPayments(report *models.MonthPayments) (interface{}, error) {
+func (mc *MongoClient) AddPayments(report *models.Payment) (interface{}, error) {
 	collection := mc.client.Database(DataBase).Collection(payments)
 	req, err := collection.InsertOne(context.Background(), report)
 	log.Println(req)
 	return req.InsertedID, err
 }
-func (mc *MongoClient) FindMonthPayments(useremail string, year int, month int) (models.MonthPayments, error) {
-	filter := bson.M{"useremail": useremail, "year": year, "month": month}
+func (mc *MongoClient) FindPayments(useremail string, year int) (models.Payment, error) {
+	filter := bson.M{"useremail": useremail, "year": year}
 	collection := mc.client.Database(DataBase).Collection(payments)
-	var reques models.MonthPayments
+	var reques models.Payment
 	err := collection.FindOne(context.Background(), filter).Decode(&reques)
 	if err != nil {
 		return reques, err
 	}
 	return reques, nil
 }
-func (mc *MongoClient) UpdateMonthPayments(updatedReport *models.MonthPayments) (*mongo.UpdateResult, error) {
+func (mc *MongoClient) UpdatePayments(updatedReport *models.Payment) (*mongo.UpdateResult, error) {
 	collection := mc.client.Database(DataBase).Collection(payments)
 
-	filter := bson.M{"_id": updatedReport.ID} // Filtrar por ID del reporte a actualizar
+	filter := bson.M{"_id": updatedReport.UUID} // Filtrar por ID del reporte a actualizar
 
 	update := bson.M{
 		"$set": updatedReport, // Utiliza el operador $set para actualizar los campos

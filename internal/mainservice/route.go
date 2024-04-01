@@ -16,7 +16,6 @@ func NewRouter(server *Server) *mux.Router {
 
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/login", handlers.Login(server.mongoDB)).Methods(http.MethodPost)
-	router.Handle("/addProduct", handlers.Products(server.mongoDB)).Methods(http.MethodPost)
-	router.Handle("/allProduct", handlers.FindAllProducts(server.mongoDB)).Methods(http.MethodGet)
+
 	return router
 }
