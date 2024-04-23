@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"financial-Assistant/internal/mainservice"
 
@@ -12,10 +10,6 @@ import (
 )
 
 func main() {
-	fmt.Println("HOLA")
-	fmt.Println(os.Getenv("DATA_BASE_MONGO"))
-	fmt.Println(os.Getenv("DATA_BASE_APPLY_URI"))
-	fmt.Println("HOLA2")
 
 	// Crea un nuevo enrutador Gorilla Mux.
 	server := mainservice.NewServer()

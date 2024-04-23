@@ -10,3 +10,16 @@ type User struct {
 	Password string             `bson:"password" json:"password"`
 	Phone    int64              `bson:"phone" json:"phone"`
 }
+type UserDevices struct {
+	ID          primitive.ObjectID `bson:"_id"`
+	UserMongoID string             `json:"usermongoid"`
+	Devices     []Device
+}
+type Device struct {
+	UUID       string   `bson:"uuid"`
+	ChargeIDs  []string `bson:"chargeids"`
+	PaymentIDs []string `bson:"paymentids"`
+	ProductIDs []string `bson:"productids"`
+	ClientIDs  []string `bson:"clientids"`
+	OrderIDs   []string `bson:"orderids"`
+}

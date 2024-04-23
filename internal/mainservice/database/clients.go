@@ -4,6 +4,7 @@ import (
 	"context"
 	"financial-Assistant/internal/mainservice/models"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -25,8 +26,31 @@ func (mc *MongoClient) FindClient(filter interface{}) (models.Client, error) {
 	return result, nil
 }
 
-func (mc *MongoClient) UpdateClient(filter interface{}, update interface{}) error {
+func (mc *MongoClient) UpdateClient(filter interface{}, client models.Client) error {
+	update := bson.M{
+		"$set": client,
+	}
 	collection := mc.client.Database(DataBase).Collection(clients)
 	_, err := collection.UpdateOne(context.Background(), filter, update)
 	return err
+}
+func (mc *MongoClient) FindAllClients(filter interface{}) ([]models.Client, error) {
+	collection := mc.client.Database(DataBase).Collection(clients)
+	var results []models.Client
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	for cursor.Next(context.Background()) {
+		var client models.Client
+		if err := cursor.Decode(&client); err != nil {
+			return nil, err
+		}
+		results = append(results, client)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
 }

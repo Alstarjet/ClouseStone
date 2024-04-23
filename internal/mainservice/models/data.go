@@ -6,6 +6,7 @@ type JTW struct {
 type DataLogin struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Device   string `json:"device"`
 }
 type DataJWT struct {
 	UserMongoID string
@@ -14,6 +15,8 @@ type DataJWT struct {
 }
 
 type JWTresponce struct {
-	Toke  string `json:"token"`
-	Hello string `json:"hello"`
+	Toke      string  `json:"token"`
+	Hello     string  `json:"hello"`
+	Data      AllData `json:"data"`
+	NewDevice bool    `json:"newdevice"`
 }
