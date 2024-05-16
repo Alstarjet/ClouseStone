@@ -5,6 +5,7 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/moduls/devices"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -39,6 +40,14 @@ func GetData(db *database.MongoClient) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		jsonPersona, err := json.Marshal(jsonResponse)
+		if err != nil {
+			fmt.Println("Error al convertir a JSON:", err)
+			return
+		}
+
+		// Imprimimos el JSON en la consola
+		fmt.Println(string(jsonPersona))
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(jsonResponse))
 	})
@@ -89,6 +98,16 @@ func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (m
 		product, _ := db.FindProduct(filter)
 		data.Products = append(data.Products, product)
 	}
-
+	for _, paymentID := range device.PaymentIDs {
+		objID, err := primitive.ObjectIDFromHex(paymentID)
+		if err != nil {
+			return data, err
+		}
+		filter := bson.D{
+			{Key: "_id", Value: objID},
+		}
+		payment, _ := db.FindPayment(filter)
+		data.Payments = append(data.Payments, payment)
+	}
 	return data, nil
 }
