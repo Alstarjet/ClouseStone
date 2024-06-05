@@ -8,14 +8,16 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateToken(payload models.DataJWT, secretKey string) (string, error) {
+func GenerateToken(payload models.User, secretKey string) (string, error) {
 	// Set token claims
 	claims := jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour * 168).Unix(),
+		"exp": time.Now().Add(time.Hour * 28).Unix(),
 	}
 
 	claims["email"] = payload.Email
 	claims["name"] = payload.Name
+	claims["userid"] = payload.ID
+	claims["typeclient"] = payload.TypeClient
 
 	// Create token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -28,7 +30,28 @@ func GenerateToken(payload models.DataJWT, secretKey string) (string, error) {
 
 	return tokenString, nil
 }
+func GenerateRefreshToken(payload models.User, secretKey string) (string, error) {
+	// Set token claims
+	claims := jwt.MapClaims{
+		"exp": time.Now().Add(time.Hour * 528).Unix(),
+	}
 
+	claims["email"] = payload.Email
+	claims["name"] = payload.Name
+	claims["userid"] = payload.ID
+	claims["typeclient"] = payload.TypeClient
+
+	// Create token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Sign token with secret key
+	tokenString, err := token.SignedString([]byte(secretKey))
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
 func DecodeToken(tokenString string, secretKey string) (jwt.MapClaims, error) {
 	// Parse token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

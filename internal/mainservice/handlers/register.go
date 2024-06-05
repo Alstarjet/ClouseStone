@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func Register(db *database.MongoClient) http.Handler {
@@ -14,23 +16,44 @@ func Register(db *database.MongoClient) http.Handler {
 		var newData models.User
 		req, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(req, &newData)
+
+		// Check if user already exists
 		user, err := db.FindUser(newData.Email)
 		if err == nil && user.Email != "" {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte("Email ya en Uso, prueba con otro"))
+			w.Write([]byte("Email ya en uso, prueba con otro"))
 			return
 		}
+
+		// Hash the password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newData.Password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Error al crear el usuario", http.StatusInternalServerError)
+			return
+		}
+
+		// Set the hashed password
+		newData.Password = string(hashedPassword)
+
+		// Register the user
 		reques, err := db.RegisterUser(&newData)
 		if err != nil {
 			log.Println(err)
+			http.Error(w, "Error al registrar el usuario", http.StatusInternalServerError)
+			return
 		}
+
+		// Respond with the new user details (without password)
+		newData.Password = ""
 		respJSON, err := json.Marshal(reques)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(respJSON)
 	})

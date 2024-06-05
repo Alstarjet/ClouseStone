@@ -12,11 +12,14 @@ type DataJWT struct {
 	UserMongoID string
 	Email       string
 	Name        string
+	TypeClient  string
 }
 
 type JWTresponce struct {
-	Toke      string  `json:"token"`
-	Hello     string  `json:"hello"`
-	Data      AllData `json:"data"`
-	NewDevice bool    `json:"newdevice"`
+	Toke         string  `json:"token"`
+	Refreshtoken string  `json:"refreshtoken"`
+	Hello        string  `json:"hello"`
+	Data         AllData `json:"data"`
+	NewDevice    bool    `json:"newdevice"`
+	TypeClient   string  `json:"typeclient"`
 }

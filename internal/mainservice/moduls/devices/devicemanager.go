@@ -8,9 +8,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func DevicesUploadStone(db *database.MongoClient, clients []string, charges []string, orders []string, payments []string, products []string, user models.User, deviceuuid string) error {
+func DevicesUploadStone(db *database.MongoClient, clients []string, charges []string, orders []string, payments []string, user models.User, deviceuuid string) error {
 	filter := bson.D{
-		{Key: "usermongoid", Value: user.ID.Hex()},
+		{Key: "_id", Value: user.ID.Hex()},
 	}
 	deviceDoc, err := db.FindDevice(filter)
 	if err != nil {
@@ -35,7 +35,6 @@ func DevicesUploadStone(db *database.MongoClient, clients []string, charges []st
 			device.ClientIDs = append(device.ClientIDs, clients...)
 			device.ChargeIDs = append(device.ChargeIDs, charges...)
 			device.PaymentIDs = append(device.PaymentIDs, payments...)
-			device.ProductIDs = append(device.ProductIDs, products...)
 			device.OrderIDs = append(device.OrderIDs, orders...)
 		}
 	}
@@ -47,42 +46,30 @@ func DevicesUploadStone(db *database.MongoClient, clients []string, charges []st
 	return nil
 }
 
-func LoginCheckDevice(db *database.MongoClient, user models.User, deviceuuid string) (bool, error) {
+func GetDevice(db *database.MongoClient, user models.User, deviceuuid string) (models.UserDevices, error) {
 	//respondemos false si el dispositivo no esta registrado
 	filter := bson.D{
-		{Key: "usermongoid", Value: user.ID.Hex()},
+		{Key: "_id", Value: user.ID},
 	}
-	deviceDoc, err := db.FindDevice(filter)
+	var DeviceDoc models.UserDevices
+
+	DeviceDoc, err := db.FindDevice(filter)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			var newDevicesDoc models.UserDevices
-			var newDevice models.Device
-			newDevice.UUID = deviceuuid
-			newDevicesDoc.UserMongoID = user.ID.Hex()
-			newDevicesDoc.Devices = append(newDevicesDoc.Devices, newDevice)
-			_, err := db.AddDevice(newDevicesDoc)
+			DeviceDoc.ID = user.ID
+			DeviceDoc.UserMongoID = user.ID.Hex()
+			DeviceDoc.UserName = user.Name + " " + user.LastName
+			DeviceDoc.UserEmail = user.Email
+			_, err := db.AddDevice(DeviceDoc)
 			if err != nil {
-				return false, err
+				return DeviceDoc, err
 			}
-			return false, nil
+			return DeviceDoc, nil
 		} else {
-			return false, err
+			return DeviceDoc, err
 		}
 	}
-
-	for _, device := range deviceDoc.Devices {
-		if device.UUID == deviceuuid {
-			return true, nil
-		}
-	}
-	var newDevice models.Device
-	newDevice.UUID = deviceuuid
-	deviceDoc.Devices = append(deviceDoc.Devices, newDevice)
-	err = db.UpdateDevice(filter, deviceDoc)
-	if err != nil {
-		return false, err
-	}
-	return false, nil
+	return DeviceDoc, nil
 }
 func ConsultIDs(db *database.MongoClient, user models.User, deviceuuid string) (models.Device, error) {
 	var newDevice models.Device
@@ -114,7 +101,6 @@ func DeleteIDsForDevice(db *database.MongoClient, user models.User, deviceuuid s
 			device.ClientIDs = nil
 			device.ChargeIDs = nil
 			device.PaymentIDs = nil
-			device.ProductIDs = nil
 			device.OrderIDs = nil
 		}
 	}

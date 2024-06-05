@@ -9,7 +9,6 @@ import (
 	"financial-Assistant/internal/mainservice/moduls/devices"
 	"financial-Assistant/internal/mainservice/moduls/orders"
 	"financial-Assistant/internal/mainservice/moduls/payments"
-	"financial-Assistant/internal/mainservice/moduls/products"
 
 	"io"
 	"log"
@@ -66,22 +65,16 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		productsIDs, err := products.ProductsUploadStone(db, newData.Products, user)
-		if err != nil {
-			log.Println(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		err = devices.DevicesUploadStone(db, clietsIDs, chargesIDs, ordersIDs, paymentsIDs, productsIDs, user, newData.DeviceID)
+		err = devices.DevicesUploadStone(db, clietsIDs, chargesIDs, ordersIDs, paymentsIDs, user, newData.DeviceID)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 		response := models.BackupResponse{
-			Message: "Datos Respaldados con Éxito",
-			Status:  200,
+			Message:    "Datos Respaldados con Éxito",
+			Status:     200,
+			TypeClient: user.TypeClient,
 		}
 		jsonResponse, _ := json.Marshal(response)
 

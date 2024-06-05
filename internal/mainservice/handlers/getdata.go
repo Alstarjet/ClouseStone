@@ -87,17 +87,7 @@ func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (m
 		order, _ := db.FindOrder(filter)
 		data.Orders = append(data.Orders, order)
 	}
-	for _, productID := range device.ProductIDs {
-		objID, err := primitive.ObjectIDFromHex(productID)
-		if err != nil {
-			return data, err
-		}
-		filter := bson.D{
-			{Key: "_id", Value: objID},
-		}
-		product, _ := db.FindProduct(filter)
-		data.Products = append(data.Products, product)
-	}
+
 	for _, paymentID := range device.PaymentIDs {
 		objID, err := primitive.ObjectIDFromHex(paymentID)
 		if err != nil {
