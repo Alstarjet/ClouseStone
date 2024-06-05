@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// NewRouter crea un nuevo router Gorilla Mux y configura sus rutas.
+// NewRouter crea un nuevo router Gorilla Mux y configura sus rutas. //nuevo comentario
 func NewRouter(server *Server) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 
