@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type JTW struct {
 	Dato string `json:"dato"`
 }
@@ -16,10 +18,9 @@ type DataJWT struct {
 }
 
 type JWTresponce struct {
-	Toke         string  `json:"token"`
-	Refreshtoken string  `json:"refreshtoken"`
-	Hello        string  `json:"hello"`
-	Data         AllData `json:"data"`
-	NewDevice    bool    `json:"newdevice"`
-	TypeClient   string  `json:"typeclient"`
+	Toke       string    `json:"token"`
+	Expires    time.Time `json:"expires"`
+	UserName   string    `json:"username"`
+	Data       AllData   `json:"data"`
+	TypeClient string    `json:"typeclient"`
 }

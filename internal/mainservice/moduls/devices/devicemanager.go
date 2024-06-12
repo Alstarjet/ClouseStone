@@ -60,6 +60,7 @@ func GetDevice(db *database.MongoClient, user models.User, deviceuuid string) (m
 			DeviceDoc.UserMongoID = user.ID.Hex()
 			DeviceDoc.UserName = user.Name + " " + user.LastName
 			DeviceDoc.UserEmail = user.Email
+			DeviceDoc.Devices = []models.Device{}
 			_, err := db.AddDevice(DeviceDoc)
 			if err != nil {
 				return DeviceDoc, err

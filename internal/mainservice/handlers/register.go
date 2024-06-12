@@ -14,9 +14,18 @@ import (
 func Register(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newData models.User
-		req, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(req, &newData)
-
+		req, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error: %v\n", err)
+			http.Error(w, "Error al registrar el usuario", http.StatusInternalServerError)
+			return
+		}
+		err = json.Unmarshal(req, &newData)
+		if err != nil {
+			log.Printf("Error: %v\n", err)
+			http.Error(w, "Error al registrar el usuario", http.StatusInternalServerError)
+			return
+		}
 		// Check if user already exists
 		user, err := db.FindUser(newData.Email)
 		if err == nil && user.Email != "" {
@@ -29,7 +38,7 @@ func Register(db *database.MongoClient) http.Handler {
 		// Hash the password
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newData.Password), bcrypt.DefaultCost)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error: %v\n", err)
 			http.Error(w, "Error al crear el usuario", http.StatusInternalServerError)
 			return
 		}
@@ -40,7 +49,7 @@ func Register(db *database.MongoClient) http.Handler {
 		// Register the user
 		reques, err := db.RegisterUser(&newData)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error: %v\n", err)
 			http.Error(w, "Error al registrar el usuario", http.StatusInternalServerError)
 			return
 		}
@@ -49,7 +58,7 @@ func Register(db *database.MongoClient) http.Handler {
 		newData.Password = ""
 		respJSON, err := json.Marshal(reques)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error: %v\n", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}

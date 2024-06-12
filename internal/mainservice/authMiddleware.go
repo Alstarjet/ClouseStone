@@ -35,6 +35,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		ctx := context.WithValue(r.Context(), "Email", info["email"].(string))
+		ctx = context.WithValue(ctx, "DeviceId", info["deviceid"].(string))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

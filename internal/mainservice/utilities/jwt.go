@@ -3,21 +3,29 @@ package utilities
 import (
 	"errors"
 	"financial-Assistant/internal/mainservice/models"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateToken(payload models.User, secretKey string) (string, error) {
-	// Set token claims
+func GenerateToken(payload models.User, deviceid, secretKey string) (string, time.Time, error) {
+	environment := os.Getenv("ENVIRONMENT")
+	var exp time.Time
+	if environment == "local" {
+		exp = time.Now().Add(time.Minute * 2)
+	} else {
+		exp = time.Now().Add(time.Hour * 24 * 22)
+	}
 	claims := jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour * 28).Unix(),
+		"exp": exp.Unix(),
 	}
 
 	claims["email"] = payload.Email
 	claims["name"] = payload.Name
 	claims["userid"] = payload.ID
 	claims["typeclient"] = payload.TypeClient
+	claims["deviceid"] = deviceid
 
 	// Create token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -25,21 +33,28 @@ func GenerateToken(payload models.User, secretKey string) (string, error) {
 	// Sign token with secret key
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		return "", err
+		return "", exp, err
 	}
 
-	return tokenString, nil
+	return tokenString, exp, nil
 }
-func GenerateRefreshToken(payload models.User, secretKey string) (string, error) {
-	// Set token claims
+func GenerateRefreshToken(payload models.User, deviceid, secretKey string) (string, time.Time, error) {
+	environment := os.Getenv("ENVIRONMENT")
+	var exp time.Time
+	if environment == "local" {
+		exp = time.Now().Add(time.Minute * 3)
+	} else {
+		exp = time.Now().Add(time.Hour * 24 * 25)
+	}
 	claims := jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour * 528).Unix(),
+		"exp": exp.Unix(),
 	}
 
 	claims["email"] = payload.Email
 	claims["name"] = payload.Name
 	claims["userid"] = payload.ID
 	claims["typeclient"] = payload.TypeClient
+	claims["deviceid"] = deviceid
 
 	// Create token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -47,10 +62,10 @@ func GenerateRefreshToken(payload models.User, secretKey string) (string, error)
 	// Sign token with secret key
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		return "", err
+		return "", exp, err
 	}
 
-	return tokenString, nil
+	return tokenString, exp, nil
 }
 func DecodeToken(tokenString string, secretKey string) (jwt.MapClaims, error) {
 	// Parse token

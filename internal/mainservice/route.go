@@ -14,6 +14,8 @@ func NewRouter(server *Server) *mux.Router {
 	router.Handle("/UploadData", AuthMiddleware(handlers.UploadDataSchedule(server.mongoDB))).Methods(http.MethodPost)
 	router.Handle("/GetData", AuthMiddleware(handlers.GetData(server.mongoDB))).Methods(http.MethodGet)
 	router.Handle("/DeleteIds", AuthMiddleware(handlers.DeleteDocIds(server.mongoDB))).Methods(http.MethodDelete)
+	router.Handle("/CloseDevice", AuthMiddleware(handlers.CloseDevice(server.mongoDB))).Methods(http.MethodDelete)
+	router.Handle("/GetJwt", RefreshMiddleware(handlers.RefreshToken(server.mongoDB))).Methods(http.MethodGet)
 
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/login", handlers.Login(server.mongoDB)).Methods(http.MethodPost)

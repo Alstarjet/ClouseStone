@@ -2,15 +2,13 @@ package handlers
 
 import (
 	"financial-Assistant/internal/mainservice/database"
-	"financial-Assistant/internal/mainservice/moduls/devices"
 	"log"
 	"net/http"
 )
 
-func DeleteDocIds(db *database.MongoClient) http.Handler {
+func CloseDevice(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		queryParams := r.URL.Query()
-		deviceid := queryParams.Get("deviceid")
+		DeviceId := r.Context().Value("deviceid").(string)
 		emailRequest := r.Context().Value("Email").(string)
 		user, err := db.FindUser(emailRequest)
 		if err != nil {
@@ -18,7 +16,7 @@ func DeleteDocIds(db *database.MongoClient) http.Handler {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		err = devices.DeleteIDsForDevice(db, user, deviceid)
+		err = db.RemoveDeviceByUUID(user.ID, DeviceId)
 		if err != nil {
 			log.Printf("Error: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

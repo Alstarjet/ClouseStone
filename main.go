@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"financial-Assistant/internal/mainservice"
 
@@ -15,9 +16,10 @@ func main() {
 	server := mainservice.NewServer()
 	router := mainservice.NewRouter(server)
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Authorization", "Content-Type"},
+		AllowedOrigins:   []string{os.Getenv("URL_FRONT")},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: true, // Asegúrate de permitir credenciales
 	})
 	handler := c.Handler(router)
 

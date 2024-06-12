@@ -5,7 +5,6 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/moduls/devices"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -20,34 +19,30 @@ func GetData(db *database.MongoClient) http.Handler {
 		emailRequest := r.Context().Value("Email").(string)
 		user, err := db.FindUser(emailRequest)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error: %v\n", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
 		DataDevice, err := devices.ConsultIDs(db, user, deviceid)
 		if err != nil {
+			log.Printf("Error: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		DataResponse, err := ConsutDocumentsForDevice(db, DataDevice)
 		if err != nil {
+			log.Printf("Error: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		jsonResponse, err := json.Marshal(DataResponse)
 		if err != nil {
+			log.Printf("Error: %v\n", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonPersona, err := json.Marshal(jsonResponse)
-		if err != nil {
-			fmt.Println("Error al convertir a JSON:", err)
-			return
-		}
 
-		// Imprimimos el JSON en la consola
-		fmt.Println(string(jsonPersona))
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(jsonResponse))
 	})
