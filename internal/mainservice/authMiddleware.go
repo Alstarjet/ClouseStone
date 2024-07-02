@@ -3,6 +3,7 @@ package mainservice
 import (
 	"context"
 	"financial-Assistant/internal/mainservice/utilities"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -27,8 +28,10 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		info, _ := utilities.DecodeToken(auth[1], os.Getenv("KEY_CODE"))
+		info, err := utilities.DecodeToken(auth[1], os.Getenv("KEY_CODE"))
 		if info == nil {
+			log.Printf("Error: %v\n", err)
+			log.Printf("Error info: %v\n", info)
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte("Tu token no sirve"))

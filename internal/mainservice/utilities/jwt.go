@@ -44,7 +44,7 @@ func GenerateRefreshToken(payload models.User, deviceid, secretKey string) (stri
 	if environment == "local" {
 		exp = time.Now().Add(time.Minute * 3)
 	} else {
-		exp = time.Now().Add(time.Hour * 24 * 25)
+		exp = time.Now().Add(time.Hour * 24 * 30)
 	}
 	claims := jwt.MapClaims{
 		"exp": exp.Unix(),

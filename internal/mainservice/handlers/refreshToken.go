@@ -17,7 +17,9 @@ import (
 func RefreshToken(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		UserId := r.Context().Value("UserId").(string)
-		DeviceId := r.Context().Value("deviceid").(string)
+		DeviceId := r.Context().Value("DeviceId").(string)
+		Cookie := r.Context().Value("Cookie").(string)
+
 		user, err := db.FindUserByID(UserId)
 		if err != nil {
 			log.Printf("Error: %v\n", err)
@@ -35,6 +37,12 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 		}
 		for i := 0; i < len(DeviceDoc.Devices); i++ {
 			if DeviceId == DeviceDoc.Devices[i].UUID {
+				if DeviceDoc.Devices[i].Refreshtoken.Token != Cookie {
+					log.Printf("Error: %v\n", err)
+					http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusInternalServerError)
+					return
+				}
+
 				now := time.Now()
 				fmt.Println(now)
 				environment := os.Getenv("ENVIRONMENT")
@@ -42,7 +50,7 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 				if environment == "local" {
 					diferTime = 1 * time.Minute
 				} else {
-					diferTime = 5 * 24 * time.Hour
+					diferTime = 10 * 24 * time.Hour
 				}
 				fmt.Println(DeviceDoc.Devices[i].Refreshtoken.DateEnd)
 				if DeviceDoc.Devices[i].Refreshtoken.DateEnd.Before(now.Add(diferTime)) {

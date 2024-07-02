@@ -19,6 +19,7 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newData models.RequestUpdate
 		req, err := io.ReadAll(r.Body)
+		DeviceId := r.Context().Value("DeviceId").(string)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -65,7 +66,7 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		err = devices.DevicesUploadStone(db, clietsIDs, chargesIDs, ordersIDs, paymentsIDs, user, newData.DeviceID)
+		err = devices.DevicesUploadStone(db, clietsIDs, chargesIDs, ordersIDs, paymentsIDs, user, DeviceId)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

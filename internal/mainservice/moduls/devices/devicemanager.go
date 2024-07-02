@@ -10,7 +10,7 @@ import (
 
 func DevicesUploadStone(db *database.MongoClient, clients []string, charges []string, orders []string, payments []string, user models.User, deviceuuid string) error {
 	filter := bson.D{
-		{Key: "_id", Value: user.ID.Hex()},
+		{Key: "_id", Value: user.ID},
 	}
 	deviceDoc, err := db.FindDevice(filter)
 	if err != nil {
@@ -20,6 +20,7 @@ func DevicesUploadStone(db *database.MongoClient, clients []string, charges []st
 			newDevice.UUID = deviceuuid
 			newDevicesDoc.UserMongoID = user.ID.Hex()
 			newDevicesDoc.Devices = append(newDevicesDoc.Devices, newDevice)
+			newDevicesDoc.ID = user.ID
 			_, err := db.AddDevice(newDevicesDoc)
 			if err != nil {
 				return err

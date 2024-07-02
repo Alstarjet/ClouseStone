@@ -8,7 +8,7 @@ import (
 
 func CloseDevice(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		DeviceId := r.Context().Value("deviceid").(string)
+		DeviceId := r.Context().Value("DeviceId").(string)
 		emailRequest := r.Context().Value("Email").(string)
 		user, err := db.FindUser(emailRequest)
 		if err != nil {

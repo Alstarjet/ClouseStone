@@ -93,7 +93,7 @@ func Login(db *database.MongoClient) http.Handler {
 		responce := models.JWTresponce{
 			Toke:       JSONToken,
 			Expires:    expiresJWT,
-			UserName:   user.Name,
+			UserName:   user.Name + " " + user.LastName,
 			Data:       Alldata,
 			TypeClient: user.TypeClient,
 		}

@@ -5,6 +5,7 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/moduls/devices"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -18,6 +19,8 @@ func GetData(db *database.MongoClient) http.Handler {
 		deviceid := queryParams.Get("deviceid")
 		emailRequest := r.Context().Value("Email").(string)
 		user, err := db.FindUser(emailRequest)
+		fmt.Println(deviceid, emailRequest)
+
 		if err != nil {
 			log.Printf("Error: %v\n", err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
