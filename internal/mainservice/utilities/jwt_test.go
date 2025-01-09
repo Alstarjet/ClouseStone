@@ -1,28 +1,29 @@
 package utilities
 
 import (
+	"encoding/json"
 	"financial-Assistant/internal/mainservice/models"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func TestJwtCreate(t *testing.T) {
-
-	objectID, _ := primitive.ObjectIDFromHex("hexID")
+	var client models.User
 	secretKey := "UnitTest343"
-	client := models.User{
-		ID:         objectID,
-		Name:       "John",
-		LastName:   "Doe",
-		Email:      "johndoe@example.com",
-		Password:   "password123",
-		Phone:      1234567890,
-		TypeClient: "premium",
-	}
-	token, _, _ := GenerateToken(client, "NotDivice", secretKey)
-	decodToken, _ := DecodeToken(token, secretKey)
+
+	body, err := os.ReadFile("samples/user.json")
+	assert.NoError(t, err)
+
+	err = json.Unmarshal(body, &client)
+	assert.NoError(t, err)
+
+	token, _, err := GenerateToken(client, "NotDivice", secretKey)
+	assert.NoError(t, err)
+
+	decodToken, err := DecodeToken(token, secretKey)
+	assert.NoError(t, err)
 
 	result := decodToken["email"]
 	expect := client.Email

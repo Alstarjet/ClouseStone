@@ -1,0 +1,11 @@
+{
+    "_id": {
+        "$oid": "64517472873ae6632e11b4b0"
+    },
+    "name": "Jose Alberto",
+    "lastname": "Estrella Trejo",
+    "email": "j@h.com",
+    "password": "$2a$10$0JhupAbEW9sdkrZ0ej8jieFdcHFZl0NXMM4nC49dETKzmHBhMbjV.",
+    "phone": 4271003016,
+    "typeclient": "Quartz"
+}
