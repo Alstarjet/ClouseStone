@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"financial-Assistant/internal/mainservice/models"
-	"fmt"
 	"log"
 	"time"
 
@@ -34,8 +33,7 @@ func (mc *MongoClient) UpdateDevice(filter interface{}, Device models.UserDevice
 		"$set": Device,
 	}
 	collection := mc.client.Database(DataBase).Collection(devices)
-	a, err := collection.UpdateOne(context.Background(), filter, update)
-	fmt.Println(a)
+	_, err := collection.UpdateOne(context.Background(), filter, update)
 	return err
 }
 
@@ -62,8 +60,7 @@ func (mc *MongoClient) UpdateDeviceRefreshToken(userID primitive.ObjectID, devic
 
 	// Realizar la actualización en la colección 'userdevices'
 	collection := mc.client.Database(DataBase).Collection(devices)
-	o, err := collection.UpdateOne(context.Background(), filter, update, &updateOptions)
-	fmt.Println(o)
+	_, err := collection.UpdateOne(context.Background(), filter, update, &updateOptions)
 	if err != nil {
 		log.Println("Error updating refresh token:", err)
 		return err
@@ -71,7 +68,6 @@ func (mc *MongoClient) UpdateDeviceRefreshToken(userID primitive.ObjectID, devic
 	return nil
 }
 
-// UpdateDeviceRefreshToken updates the refresh token of a specific device
 func (mc *MongoClient) AddNewDevice(userID primitive.ObjectID, newDevice models.Device) error {
 	// Filtrar por el ID del usuario
 	filter := bson.D{{Key: "_id", Value: userID}}
@@ -84,10 +80,9 @@ func (mc *MongoClient) AddNewDevice(userID primitive.ObjectID, newDevice models.
 	}
 
 	collection := mc.client.Database(DataBase).Collection(devices)
-	o, err := collection.UpdateOne(context.Background(), filter, update)
-	fmt.Println(o)
+	_, err := collection.UpdateOne(context.Background(), filter, update)
 	if err != nil {
-		log.Println("Error updating refresh token:", err)
+		log.Println("Error adding new device:", err)
 		return err
 	}
 	return nil
@@ -106,9 +101,7 @@ func (mc *MongoClient) RemoveDeviceByUUID(userID primitive.ObjectID, deviceUUID 
 
 	collection := mc.client.Database(DataBase).Collection(devices)
 
-	// Ejecutar la actualización para eliminar el dispositivo
-	o, err := collection.UpdateOne(context.Background(), filter, removeUpdate)
-	fmt.Println(o)
+	_, err := collection.UpdateOne(context.Background(), filter, removeUpdate)
 	if err != nil {
 		log.Println("Error removing device by UUID:", err)
 		return err
@@ -116,36 +109,3 @@ func (mc *MongoClient) RemoveDeviceByUUID(userID primitive.ObjectID, deviceUUID 
 
 	return nil
 }
-
-/*
-func (mc *MongoClient) DeleteIDsForDevice(userID primitive.ObjectID, deviceUUID string, newToken string, newExpiry time.Time) error {
-	// Filtrar por el ID del usuario
-	filter := bson.D{{Key: "_id", Value: userID}}
-
-	// Definir la actualización del token de refresco
-	update := bson.D{
-		{Key: "$pull", Value: bson.D{
-			{Key: "devices.$[elem].chargeids", Value: bson.D{{Key: "$in", Value: chargesToRemove}}},
-			{Key: "devices.$[elem].refreshtoken.dateend", Value: newExpiry},
-		}},
-	}
-
-	// Configurar los filtros de array para identificar el dispositivo específico
-	arrayFilters := options.ArrayFilters{
-		Filters: []interface{}{bson.M{"elem.uuid": deviceUUID}},
-	}
-	updateOptions := options.UpdateOptions{
-		ArrayFilters: &arrayFilters,
-	}
-
-	// Realizar la actualización en la colección 'userdevices'
-	collection := mc.client.Database(DataBase).Collection(devices)
-	o, err := collection.UpdateOne(context.Background(), filter, update, &updateOptions)
-	fmt.Println(o)
-	if err != nil {
-		log.Println("Error updating refresh token:", err)
-		return err
-	}
-	return nil
-}
-*/

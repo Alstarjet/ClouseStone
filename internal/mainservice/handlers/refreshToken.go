@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/utilities"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,91 +16,103 @@ import (
 
 func RefreshToken(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		UserId := r.Context().Value("UserId").(string)
-		DeviceId := r.Context().Value("DeviceId").(string)
-		Cookie := r.Context().Value("Cookie").(string)
+		userID, ok := r.Context().Value(ctxkeys.UserID).(string)
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		deviceID, ok := r.Context().Value(ctxkeys.DeviceID).(string)
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		cookieToken, ok := r.Context().Value(ctxkeys.Cookie).(string)
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
 
-		user, err := db.FindUserByID(UserId)
+		user, err := db.FindUserByID(userID)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			log.Printf("RefreshToken: find user error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		filter := bson.D{
-			{Key: "_id", Value: user.ID},
-		}
-		DeviceDoc, err := db.FindDevice(filter)
+
+		filter := bson.D{{Key: "_id", Value: user.ID}}
+		deviceDoc, err := db.FindDevice(filter)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			log.Printf("RefreshToken: find device error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		for i := 0; i < len(DeviceDoc.Devices); i++ {
-			if DeviceId == DeviceDoc.Devices[i].UUID {
-				if DeviceDoc.Devices[i].Refreshtoken.Token != Cookie {
-					log.Printf("Error: %v\n", err)
-					http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusInternalServerError)
+
+		// Find the matching device and validate refresh token hash
+		hashedToken := utilities.HashToken(cookieToken)
+		deviceFound := false
+
+		for i := 0; i < len(deviceDoc.Devices); i++ {
+			if deviceID != deviceDoc.Devices[i].UUID {
+				continue
+			}
+			deviceFound = true
+
+			if deviceDoc.Devices[i].Refreshtoken.Token != hashedToken {
+				log.Printf("RefreshToken: token hash mismatch for device %s", deviceID)
+				http.Error(w, `{"error":"invalid refresh token"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Check if refresh token needs rotation
+			now := time.Now()
+			environment := os.Getenv("ENVIRONMENT")
+			var rotationWindow time.Duration
+			if environment == "local" {
+				rotationWindow = 1 * time.Minute
+			} else {
+				rotationWindow = 10 * 24 * time.Hour
+			}
+
+			if deviceDoc.Devices[i].Refreshtoken.DateEnd.Before(now.Add(rotationWindow)) {
+				newRefreshToken, expires, err := utilities.GenerateRefreshToken(user, deviceID, os.Getenv("REFRESH_SECRET"))
+				if err != nil {
+					log.Printf("RefreshToken: generate refresh token error: %v", err)
+					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 					return
 				}
-
-				now := time.Now()
-				fmt.Println(now)
-				environment := os.Getenv("ENVIRONMENT")
-				var diferTime time.Duration
-				if environment == "local" {
-					diferTime = 1 * time.Minute
-				} else {
-					diferTime = 10 * 24 * time.Hour
+				newHash := utilities.HashToken(newRefreshToken)
+				if err = db.UpdateDeviceRefreshToken(deviceDoc.ID, deviceID, newHash, expires); err != nil {
+					log.Printf("RefreshToken: update refresh token error: %v", err)
+					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+					return
 				}
-				fmt.Println(DeviceDoc.Devices[i].Refreshtoken.DateEnd)
-				if DeviceDoc.Devices[i].Refreshtoken.DateEnd.Before(now.Add(diferTime)) {
-					RefreshToken, expires, err := utilities.GenerateRefreshToken(user, DeviceId, os.Getenv("KEY_CODE"))
-					if err != nil {
-						log.Printf("Error: %v\n", err)
-						http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-						return
-					}
-					err = db.UpdateDeviceRefreshToken(DeviceDoc.ID, DeviceId, RefreshToken, expires)
-					if err != nil {
-						log.Printf("Error: %v\n", err)
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-						return
-					}
-					http.SetCookie(w, &http.Cookie{
-						Name:     "refresh_token",
-						Value:    RefreshToken,
-						HttpOnly: true,
-						Path:     "/",
-						Expires:  expires,
-					})
-					fmt.Println("Es hora de un nuevop refresh")
-				} else {
-					fmt.Println("No toca refresh")
-				}
-				break
+				SetRefreshCookie(w, newRefreshToken, expires)
 			}
+			break
 		}
-		JSONToken, ExpiresJWT, err := utilities.GenerateToken(user, DeviceId, os.Getenv("KEY_CODE"))
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+
+		if !deviceFound {
+			http.Error(w, `{"error":"device not found"}`, http.StatusUnauthorized)
 			return
 		}
-		responce := models.JWTresponce{
-			Toke:       JSONToken,
-			Expires:    ExpiresJWT,
+
+		accessToken, expiresJWT, err := utilities.GenerateToken(user, deviceID, os.Getenv("ACCESS_SECRET"))
+		if err != nil {
+			log.Printf("RefreshToken: generate access token error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+			return
+		}
+
+		response := models.JWTresponce{
+			Toke:       accessToken,
+			Expires:    expiresJWT,
 			UserName:   user.Name,
 			TypeClient: user.TypeClient,
 		}
 
-		jsonResponse, err := json.Marshal(responce)
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(jsonResponse))
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Printf("RefreshToken: encode response error: %v", err)
+		}
 	})
 }

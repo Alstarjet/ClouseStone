@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/moduls/devices"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -17,39 +17,40 @@ func GetData(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		deviceid := queryParams.Get("deviceid")
-		emailRequest := r.Context().Value("Email").(string)
-		user, err := db.FindUser(emailRequest)
-		fmt.Println(deviceid, emailRequest)
 
+		emailRequest, ok := r.Context().Value(ctxkeys.Email).(string)
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
+		user, err := db.FindUser(emailRequest)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			log.Printf("GetData: find user error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
 
 		DataDevice, err := devices.ConsultIDs(db, user, deviceid)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("GetData: consult IDs error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
 		DataResponse, err := ConsutDocumentsForDevice(db, DataDevice)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		jsonResponse, err := json.Marshal(DataResponse)
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("GetData: consult documents error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(jsonResponse))
+		if err := json.NewEncoder(w).Encode(DataResponse); err != nil {
+			log.Printf("GetData: encode response error: %v", err)
+		}
 	})
 }
+
 func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (models.AllData, error) {
 	var data models.AllData
 	for _, clientID := range device.ClientIDs {
@@ -57,9 +58,7 @@ func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (m
 		if err != nil {
 			return data, err
 		}
-		filter := bson.D{
-			{Key: "_id", Value: objID},
-		}
+		filter := bson.D{{Key: "_id", Value: objID}}
 		client, _ := db.FindClient(filter)
 		data.Clients = append(data.Clients, client)
 	}
@@ -68,9 +67,7 @@ func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (m
 		if err != nil {
 			return data, err
 		}
-		filter := bson.D{
-			{Key: "_id", Value: objID},
-		}
+		filter := bson.D{{Key: "_id", Value: objID}}
 		charge, _ := db.FindCharge(filter)
 		data.Charges = append(data.Charges, charge)
 	}
@@ -79,21 +76,16 @@ func ConsutDocumentsForDevice(db *database.MongoClient, device models.Device) (m
 		if err != nil {
 			return data, err
 		}
-		filter := bson.D{
-			{Key: "_id", Value: objID},
-		}
+		filter := bson.D{{Key: "_id", Value: objID}}
 		order, _ := db.FindOrder(filter)
 		data.Orders = append(data.Orders, order)
 	}
-
 	for _, paymentID := range device.PaymentIDs {
 		objID, err := primitive.ObjectIDFromHex(paymentID)
 		if err != nil {
 			return data, err
 		}
-		filter := bson.D{
-			{Key: "_id", Value: objID},
-		}
+		filter := bson.D{{Key: "_id", Value: objID}}
 		payment, _ := db.FindPayment(filter)
 		data.Payments = append(data.Payments, payment)
 	}

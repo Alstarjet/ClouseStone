@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"F:\\\\GitHub\\\\ClouseStone\\\\internal\\\\mainservice\\\\utilities\\\\samples\"\" 2>nul || echo \"Directory not found \")",
+      "Bash(go mod tidy:*)",
+      "Bash(go test:*)",
+      "Bash(go build:*)"
+    ]
+  }
+}

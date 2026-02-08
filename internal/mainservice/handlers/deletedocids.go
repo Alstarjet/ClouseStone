@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/moduls/devices"
 	"log"
@@ -11,21 +12,27 @@ func DeleteDocIds(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryParams := r.URL.Query()
 		deviceid := queryParams.Get("deviceid")
-		emailRequest := r.Context().Value("Email").(string)
+
+		emailRequest, ok := r.Context().Value(ctxkeys.Email).(string)
+		if !ok {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+
 		user, err := db.FindUser(emailRequest)
 		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			log.Printf("DeleteDocIds: find user error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		err = devices.DeleteIDsForDevice(db, user, deviceid)
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		if err = devices.DeleteIDsForDevice(db, user, deviceid); err != nil {
+			log.Printf("DeleteDocIds: delete IDs error: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("{}"))
 	})
 }

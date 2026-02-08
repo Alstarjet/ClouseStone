@@ -1,20 +1,24 @@
-# Usa la imagen oficial de Golang
-FROM golang:1.22
+# Build stage
+FROM golang:1.22-alpine AS builder
 
-# Establece el directorio de trabajo dentro del contenedor
-WORKDIR /go/src/app
+WORKDIR /app
 
-# Copia el código del proyecto al contenedor
-COPY . .
-
-# Descarga las dependencias del proyecto
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Compila el proyecto
-RUN go build -o app .
+COPY . .
 
-# Expone el puerto 8080
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+COPY --from=builder /app/server .
+
 EXPOSE 8080
 
-# Comando para ejecutar la aplicación
-CMD ["./app"]
+CMD ["./server"]

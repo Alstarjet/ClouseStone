@@ -30,7 +30,7 @@ func NewMongoClient() (*MongoClient, error) {
 	if err := client.Ping(context.Background(), nil); err != nil {
 		return nil, err
 	}
-	log.Println("estamos en crear client", err)
+	log.Println("MongoDB connected successfully")
 	return &MongoClient{client: client}, nil
 }
 

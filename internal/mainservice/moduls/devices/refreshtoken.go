@@ -3,19 +3,21 @@ package devices
 import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
+	"financial-Assistant/internal/mainservice/utilities"
 	"time"
 )
 
 func AddDeviceAndRefreshToken(db *database.MongoClient, Device models.UserDevices, RefreshToken string, Expires time.Time, UUID string) error {
+	hashedToken := utilities.HashToken(RefreshToken)
+
 	found := false
 	for _, device := range Device.Devices {
 		if device.UUID == UUID {
-			err := db.UpdateDeviceRefreshToken(Device.ID, UUID, RefreshToken, Expires)
+			err := db.UpdateDeviceRefreshToken(Device.ID, UUID, hashedToken, Expires)
 			if err != nil {
 				return err
 			}
 			found = true
-
 		}
 	}
 	if !found {
@@ -26,7 +28,7 @@ func AddDeviceAndRefreshToken(db *database.MongoClient, Device models.UserDevice
 			ClientIDs:  []string{},
 			OrderIDs:   []string{},
 			Refreshtoken: models.Refreshtoken{
-				Token:   RefreshToken,
+				Token:   hashedToken,
 				DateEnd: Expires,
 			},
 		}
