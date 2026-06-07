@@ -17,6 +17,9 @@ func NewRouter(server *Server) *mux.Router {
 	router.Handle("/CloseDevice", AuthMiddleware(handlers.CloseDevice(server.mongoDB))).Methods(http.MethodDelete)
 	router.Handle("/GetJwt", RefreshMiddleware(handlers.RefreshToken(server.mongoDB))).Methods(http.MethodGet)
 
+	// Sync v2: delta por timestamp + soft delete (sube y baja en una sola llamada).
+	router.Handle("/sync", AuthMiddleware(handlers.Sync(server.mongoDB))).Methods(http.MethodPost)
+
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/login", handlers.Login(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/loginForce", handlers.LoginForce(server.mongoDB)).Methods(http.MethodPost)
