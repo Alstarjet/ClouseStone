@@ -3,6 +3,7 @@ package orders
 import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -12,6 +13,8 @@ import (
 func OrdersUploadStone(db *database.MongoClient, orders []models.Charge, user models.User) ([]string, error) {
 	var OkIds []string
 	for _, order := range orders {
+		// El servidor sella la hora de llegada (createat/updateat son del cliente).
+		order.BackupAt = time.Now().UTC()
 		filter := bson.D{
 			{Key: "uuid", Value: order.UUID},
 			{Key: "usermongoid", Value: user.ID.Hex()},

@@ -3,6 +3,7 @@ package payments
 import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -12,6 +13,8 @@ import (
 func PaymentsUploadStone(db *database.MongoClient, payments []models.Payment, user models.User) ([]string, error) {
 	var OkIds []string
 	for _, payment := range payments {
+		// El servidor sella la hora de llegada (createat/updateat son del cliente).
+		payment.BackupAt = time.Now().UTC()
 		filter := bson.D{
 			{Key: "uuid", Value: payment.UUID},
 			{Key: "usermongoid", Value: user.ID.Hex()},

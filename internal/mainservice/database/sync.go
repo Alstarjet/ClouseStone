@@ -67,6 +67,7 @@ func buildSyncSetDoc(item any, usermongoid, uuid string, serverTime time.Time) (
 	delete(setDoc, "_id")
 	delete(setDoc, "createat")
 	setDoc["updateat"] = serverTime
+	setDoc["backupat"] = serverTime
 	setDoc["usermongoid"] = usermongoid
 	setDoc["uuid"] = uuid
 	if s, _ := setDoc["status"].(string); s == "" {

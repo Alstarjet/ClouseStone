@@ -18,5 +18,7 @@ type Charge struct {
 	UserMongoID string             `bson:"usermongoid" json:"-"`
 	CreateAt    time.Time          `json:"createat"`
 	UpdateAt    time.Time          `json:"updateat"`
-	Status      string             `json:"status"`
+	// BackupAt lo sella el servidor al recibir el documento (ver Client).
+	BackupAt time.Time `json:"backupat" bson:"backupat"`
+	Status   string    `json:"status"`
 }

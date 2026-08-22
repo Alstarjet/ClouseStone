@@ -44,6 +44,10 @@ func TestBuildSyncSetDoc(t *testing.T) {
 		if !ok || !ut.Equal(serverTime) {
 			t.Errorf("updateat = %v; se esperaba %v", setDoc["updateat"], serverTime)
 		}
+		bt, ok := setDoc["backupat"].(time.Time)
+		if !ok || !bt.Equal(serverTime) {
+			t.Errorf("backupat = %v; se esperaba %v", setDoc["backupat"], serverTime)
+		}
 		if got := setDoc["name"]; got != "Juan" {
 			t.Errorf("name = %v; se esperaba \"Juan\"", got)
 		}

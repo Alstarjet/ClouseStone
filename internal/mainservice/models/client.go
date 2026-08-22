@@ -20,5 +20,8 @@ type Client struct {
 	UserMongoID  string             `bson:"usermongoid" json:"-"`
 	CreateAt     time.Time          `json:"createat"`
 	UpdateAt     time.Time          `json:"updateat"`
-	Status       string             `json:"status"`
+	// BackupAt lo sella el SERVIDOR al recibir el documento (createat/updateat
+	// vienen del reloj del dispositivo). Es la base del delta de /GetDataSince.
+	BackupAt time.Time `json:"backupat" bson:"backupat"`
+	Status   string    `json:"status"`
 }

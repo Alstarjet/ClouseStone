@@ -3,6 +3,7 @@ package charges
 import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -12,6 +13,8 @@ import (
 func ChargesUploadStone(db *database.MongoClient, charges []models.Charge, user models.User) ([]string, error) {
 	var OkIds []string
 	for _, charge := range charges {
+		// El servidor sella la hora de llegada (createat/updateat son del cliente).
+		charge.BackupAt = time.Now().UTC()
 		filter := bson.D{
 			{Key: "uuid", Value: charge.UUID},
 			{Key: "usermongoid", Value: user.ID.Hex()},
