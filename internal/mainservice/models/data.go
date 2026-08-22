@@ -23,4 +23,8 @@ type JWTresponce struct {
 	UserName   string    `json:"username"`
 	Data       AllData   `json:"data"`
 	TypeClient string    `json:"typeclient"`
+	// RefreshToken viaja en el cuerpo para clientes que no pueden usar la
+	// cookie (cross-site o app nativa); lo envían de vuelta en el header
+	// X-Refresh-Token. En /GetJwt solo se incluye cuando el token rotó.
+	RefreshToken string `json:"refreshtoken,omitempty"`
 }

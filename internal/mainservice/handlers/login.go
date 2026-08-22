@@ -141,10 +141,11 @@ func issueTokensAndRespond(db *database.MongoClient, w http.ResponseWriter, user
 	}
 
 	response := models.JWTresponce{
-		Toke:       accessToken,
-		Expires:    expiresJWT,
-		UserName:   user.Name + " " + user.LastName,
-		TypeClient: user.TypeClient,
+		Toke:         accessToken,
+		Expires:      expiresJWT,
+		UserName:     user.Name + " " + user.LastName,
+		TypeClient:   user.TypeClient,
+		RefreshToken: refreshToken,
 	}
 
 	if includeData {

@@ -50,6 +50,7 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 		// Find the matching device and validate refresh token hash
 		hashedToken := utilities.HashToken(cookieToken)
 		deviceFound := false
+		rotatedRefreshToken := ""
 
 		for i := 0; i < len(deviceDoc.Devices); i++ {
 			if deviceID != deviceDoc.Devices[i].UUID {
@@ -87,6 +88,7 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 					return
 				}
 				SetRefreshCookie(w, newRefreshToken, expires)
+				rotatedRefreshToken = newRefreshToken
 			}
 			break
 		}
@@ -104,10 +106,11 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 		}
 
 		response := models.JWTresponce{
-			Toke:       accessToken,
-			Expires:    expiresJWT,
-			UserName:   user.Name,
-			TypeClient: user.TypeClient,
+			Toke:         accessToken,
+			Expires:      expiresJWT,
+			UserName:     user.Name,
+			TypeClient:   user.TypeClient,
+			RefreshToken: rotatedRefreshToken,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
