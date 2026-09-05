@@ -1,2 +1,7 @@
+# Config local (secretos)
 env.csv
 .env
+
+# Binarios compilados (Cloud Run compila dentro del Dockerfile)
+*.exe
+/server

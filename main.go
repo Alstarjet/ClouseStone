@@ -11,10 +11,18 @@ import (
 
 	"financial-Assistant/internal/mainservice"
 
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 func main() {
+	// Carga el archivo .env (desarrollo local). En producción (Cloud Run) no
+	// existe el archivo: Overload no hace nada y se usan las variables del
+	// entorno reales. Localmente, el .env es la fuente de verdad de la config.
+	if err := godotenv.Overload(); err != nil {
+		log.Printf("main: no se cargó .env (se usarán variables del entorno): %v", err)
+	}
+
 	server := mainservice.NewServer()
 	router := mainservice.NewRouter(server)
 

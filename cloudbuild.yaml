@@ -1,0 +1,56 @@
+# Despliegue continuo a Cloud Run.
+#
+# Se ejecuta desde un trigger de Cloud Build conectado a GitHub que escucha
+# push a la rama `production` (ver checklist en el PR/commit que agregó este archivo).
+#
+# Flujo: build de la imagen con el dockerfile multi-stage -> push a Artifact
+# Registry (tags :<sha> y :latest) -> deploy de esa imagen al servicio.
+#
+# El deploy NO toca las variables de entorno ya configuradas en el servicio
+# (ACCESS_SECRET, REFRESH_SECRET, DATA_BASE_MONGO, etc.); se administran una
+# sola vez desde la consola de Cloud Run.
+#
+# Costo: la política de limpieza del repo de Artifact Registry (conservar solo
+# las últimas versiones) evita acumular imágenes. Cloud Run guarda su propia
+# copia de la imagen desplegada, por lo que borrar imágenes viejas es seguro.
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - dockerfile
+      - -t
+      - ${_IMAGE}:${SHORT_SHA}
+      - -t
+      - ${_IMAGE}:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, '${_IMAGE}']
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+substitutions:
+  _REGION: us-south1
+  _SERVICE: clousestone
+  _IMAGE: us-south1-docker.pkg.dev/cloudstone-404021/cloud-run-source-deploy/clousestone
+
+images:
+  - ${_IMAGE}:${SHORT_SHA}
+  - ${_IMAGE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

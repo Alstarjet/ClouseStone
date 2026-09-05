@@ -1,0 +1,23 @@
+# Nunca meter secretos locales en la imagen: main.go usa godotenv.Overload
+# y un .env dentro del contenedor pisaría las variables reales de Cloud Run.
+.env
+env.csv
+
+# Binarios y artefactos locales
+*.exe
+server
+
+# Repo y herramientas de desarrollo
+.git
+.gitignore
+.gitattributes
+.claude
+.agents
+CLAUDE.md
+cloudbuild.yaml
+
+# Utilidades de desarrollo (seed, createuser); el servicio se compila desde la raíz
+cmd/
+
+# Tests
+**/*_test.go

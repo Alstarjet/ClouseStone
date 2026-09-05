@@ -13,9 +13,13 @@ type MongoClient struct {
 	client *mongo.Client
 }
 
-var DataBase = os.Getenv("DATA_BASE_MONGO")
+// DataBase es el nombre de la base de datos. Se asigna en NewMongoClient (no a
+// nivel de paquete) para que se lea DESPUÉS de cargar el .env en main().
+var DataBase string
 
 func NewMongoClient() (*MongoClient, error) {
+	DataBase = os.Getenv("DATA_BASE_MONGO")
+
 	// Use the SetServerAPIOptions() method to set the Stable API version to 1
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 	opts := options.Client().ApplyURI(os.Getenv("DATA_BASE_APPLY_URI")).SetServerAPIOptions(serverAPI)
