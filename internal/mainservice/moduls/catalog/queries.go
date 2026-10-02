@@ -74,8 +74,13 @@ func productLite(p *product) map[string]any {
 	}
 	out["image"] = image
 
+	// Textos de lámina completos (micro, short y solo) e ingredientes: con esto el
+	// cliente muestra el producto solo o dentro de un kit sin pedir el detalle.
 	if c := sub(r, "copy"); c != nil {
-		out["copy"] = map[string]any{"micro": c["micro"], "short": c["short"]}
+		out["copy"] = c
+	}
+	if ings, ok := r["ingredients"]; ok {
+		out["ingredients"] = ings
 	}
 	needs := make([]any, 0, len(p.links))
 	for _, l := range p.links {
@@ -123,6 +128,7 @@ func (s *Snapshot) kitView(k *kit, expand bool) map[string]any {
 
 // ProductFilter son los filtros del listado de productos.
 type ProductFilter struct {
+	Query        string   // texto libre: nombre, clave, tipo, necesidades, ingredientes y textos
 	Needs        []string // slugs de necesidades: se listan los productos ligados a ellas
 	Rubro        string
 	Type         string // productType
@@ -133,19 +139,25 @@ type ProductFilter struct {
 
 // ProductList devuelve la página pedida y el total de coincidencias. Con need,
 // la lista es exhaustiva (todos los productos ligados) y se ordena por puntaje =
-// Σ relevancia de las ligas que coinciden; sin need, por nombre.
+// Σ relevancia de las ligas que coinciden; con q, sólo los que coinciden con el
+// texto, y su puntaje se suma. Sin need ni q, por nombre.
 func (s *Snapshot) ProductList(f ProductFilter) (items []map[string]any, total int, err error) {
 	for _, slug := range f.Needs {
 		if _, ok := s.knownNeeds[slug]; !ok {
 			return nil, 0, &ParamError{Param: "need", Value: slug, Reason: "unknown need"}
 		}
 	}
-	ranked := len(f.Needs) > 0
+	words, searching := queryWords(f.Query)
+	if searching && len(words) == 0 {
+		return []map[string]any{}, 0, nil // sólo palabras vacías: nada que buscar
+	}
+	ranked := len(f.Needs) > 0 || searching
 
 	type hit struct {
 		p       *product
 		score   float64
 		matched []needLink
+		terms   []string
 	}
 	var hits []hit
 	for _, p := range s.products {
@@ -159,7 +171,7 @@ func (s *Snapshot) ProductList(f ProductFilter) (items []map[string]any, total i
 			continue
 		}
 		h := hit{p: p}
-		if ranked {
+		if len(f.Needs) > 0 {
 			for _, l := range p.links {
 				if contains(f.Needs, l.need) && l.relevance >= f.MinRelevance {
 					h.score += l.relevance
@@ -169,6 +181,14 @@ func (s *Snapshot) ProductList(f ProductFilter) (items []map[string]any, total i
 			if len(h.matched) == 0 {
 				continue
 			}
+		}
+		if searching {
+			text, matched := p.terms.score(words)
+			if len(matched) == 0 {
+				continue
+			}
+			h.score += text
+			h.terms = matched
 		}
 		hits = append(hits, h)
 	}
@@ -187,11 +207,16 @@ func (s *Snapshot) ProductList(f ProductFilter) (items []map[string]any, total i
 		item := productLite(h.p)
 		if ranked {
 			item["score"] = round2(h.score)
+		}
+		if len(f.Needs) > 0 {
 			matched := make([]any, 0, len(h.matched))
 			for _, l := range h.matched {
 				matched = append(matched, map[string]any{"need": l.need, "relevance": l.relevance, "role": l.role})
 			}
 			item["matched"] = matched
+		}
+		if searching {
+			item["matchedTerms"] = h.terms
 		}
 		items = append(items, item)
 	}
@@ -200,6 +225,15 @@ func (s *Snapshot) ProductList(f ProductFilter) (items []map[string]any, total i
 
 func round2(f float64) float64 {
 	return float64(int(f*100+0.5)) / 100
+}
+
+// queryWords normaliza el texto de búsqueda. searching indica si se pidió una
+// búsqueda (q no vacío), aunque todas sus palabras resulten vacías.
+func queryWords(q string) (words []string, searching bool) {
+	if q == "" {
+		return nil, false
+	}
+	return Normalize(q), true
 }
 
 // Product devuelve el producto completo por clave del catálogo (cualquier
@@ -239,6 +273,7 @@ func (s *Snapshot) Product(id string) (map[string]any, error) {
 
 // KitFilter son los filtros del listado de kits.
 type KitFilter struct {
+	Query       string   // texto libre: título, necesidades, perfiles y productos del kit
 	Needs       []string // el kit responde a alguna de estas necesidades
 	Perfiles    []string // el kit responde a alguno de estos perfiles
 	Expand      bool     // resolver los productos de cada item
@@ -246,7 +281,8 @@ type KitFilter struct {
 }
 
 // KitList devuelve los kits curados que coinciden (sin filtros, todos), ordenados
-// por título. Cada kit lleva 3 o 4 productos, aunque haya más relacionados.
+// por título; con q, sólo los que coinciden con el texto, del más al menos
+// relevante. Cada kit lleva 3 o 4 productos, aunque haya más relacionados.
 func (s *Snapshot) KitList(f KitFilter) (items []map[string]any, total int, err error) {
 	for _, slug := range f.Needs {
 		if _, ok := s.knownNeeds[slug]; !ok {
@@ -259,7 +295,17 @@ func (s *Snapshot) KitList(f KitFilter) (items []map[string]any, total int, err 
 		}
 	}
 
-	var kits []*kit
+	words, searching := queryWords(f.Query)
+	if searching && len(words) == 0 {
+		return []map[string]any{}, 0, nil // sólo palabras vacías: nada que buscar
+	}
+
+	type hit struct {
+		k     *kit
+		score float64
+		terms []string
+	}
+	var hits []hit
 	for _, k := range s.kits {
 		if len(f.Needs)+len(f.Perfiles) > 0 {
 			match := false
@@ -273,12 +319,32 @@ func (s *Snapshot) KitList(f KitFilter) (items []map[string]any, total int, err 
 				continue
 			}
 		}
-		kits = append(kits, k)
+		h := hit{k: k}
+		if searching {
+			if h.score, h.terms = k.terms.score(words); len(h.terms) == 0 {
+				continue
+			}
+		}
+		hits = append(hits, h)
 	}
-	total = len(kits)
+	if searching {
+		sort.SliceStable(hits, func(i, j int) bool {
+			if hits[i].score != hits[j].score {
+				return hits[i].score > hits[j].score
+			}
+			return sortKey(hits[i].k.title) < sortKey(hits[j].k.title)
+		})
+	}
+
+	total = len(hits)
 	items = []map[string]any{}
-	for _, k := range page(kits, f.Skip, f.Limit) {
-		items = append(items, s.kitView(k, f.Expand))
+	for _, h := range page(hits, f.Skip, f.Limit) {
+		view := s.kitView(h.k, f.Expand)
+		if searching {
+			view["score"] = round2(h.score)
+			view["matchedTerms"] = h.terms
+		}
+		items = append(items, view)
 	}
 	return items, total, nil
 }

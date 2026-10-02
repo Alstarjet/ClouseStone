@@ -20,6 +20,7 @@ import (
 const (
 	defaultListLimit = 50
 	maxListLimit     = 200
+	maxQueryLength   = 200
 	catalogCacheCtl  = "private, max-age=60"
 )
 
@@ -96,15 +97,19 @@ func boolParam(r *http.Request, name string, def bool) bool {
 	}
 }
 
-// listParams lee limit y skip de la query.
-func listParams(r *http.Request) (limit, skip int, err error) {
+// listParams lee q (texto libre), limit y skip de la query.
+func listParams(r *http.Request) (q string, limit, skip int, err error) {
+	q = strings.TrimSpace(r.URL.Query().Get("q"))
+	if len([]rune(q)) > maxQueryLength {
+		return "", 0, 0, fmt.Errorf("q too long (max %d characters)", maxQueryLength)
+	}
 	if limit, err = intParam(r, "limit", defaultListLimit, 1, maxListLimit); err != nil {
-		return 0, 0, err
+		return "", 0, 0, err
 	}
 	if skip, err = intParam(r, "skip", 0, 0, 1<<30); err != nil {
-		return 0, 0, err
+		return "", 0, 0, err
 	}
-	return limit, skip, nil
+	return q, limit, skip, nil
 }
 
 // withSnapshot carga el catálogo y ejecuta el handler; centraliza el manejo de
@@ -125,11 +130,11 @@ func writeList(w http.ResponseWriter, items any, total, limit, skip int) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total, "limit": limit, "skip": skip})
 }
 
-// CatalogProducts: GET /catalog/products — lista de productos con filtros
-// (need, rubro, type, application, min_relevance, limit, skip).
+// CatalogProducts: GET /catalog/products — lista de productos con búsqueda por
+// texto y filtros (q, need, rubro, type, application, min_relevance, limit, skip).
 func CatalogProducts(svc *catalog.Service) http.Handler {
 	return withSnapshot(svc, "CatalogProducts", func(w http.ResponseWriter, r *http.Request, snap *catalog.Snapshot) {
-		limit, skip, err := listParams(r)
+		query, limit, skip, err := listParams(r)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -143,7 +148,7 @@ func CatalogProducts(svc *catalog.Service) http.Handler {
 		}
 		q := r.URL.Query()
 		items, total, err := snap.ProductList(catalog.ProductFilter{
-			Needs: queryList(r, "need"),
+			Query: query, Needs: queryList(r, "need"),
 			Rubro: q.Get("rubro"), Type: q.Get("type"), Application: q.Get("application"),
 			MinRelevance: minRel, Limit: limit, Skip: skip,
 		})
@@ -168,16 +173,16 @@ func CatalogProduct(svc *catalog.Service) http.Handler {
 	})
 }
 
-// CatalogKits: GET /catalog/kits — kits curados (need, perfil, expand, limit, skip).
+// CatalogKits: GET /catalog/kits — kits curados (q, need, perfil, expand, limit, skip).
 func CatalogKits(svc *catalog.Service) http.Handler {
 	return withSnapshot(svc, "CatalogKits", func(w http.ResponseWriter, r *http.Request, snap *catalog.Snapshot) {
-		limit, skip, err := listParams(r)
+		query, limit, skip, err := listParams(r)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		items, total, err := snap.KitList(catalog.KitFilter{
-			Needs: queryList(r, "need"), Perfiles: queryList(r, "perfil"),
+			Query: query, Needs: queryList(r, "need"), Perfiles: queryList(r, "perfil"),
 			Expand: boolParam(r, "expand", true), Limit: limit, Skip: skip,
 		})
 		if err != nil {

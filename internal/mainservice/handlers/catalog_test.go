@@ -8,6 +8,7 @@ import (
 	"financial-Assistant/internal/mainservice/moduls/catalog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,18 @@ func TestCatalogHandlers(t *testing.T) {
 				t.Errorf("total = %v", b["total"])
 			}
 		}},
+		{"búsqueda por texto en productos", "/catalog/products?q=se+me+cae+el+pelo", 200, func(t *testing.T, b map[string]any) {
+			items := b["items"].([]any)
+			if b["total"] != 2.0 || items[0].(map[string]any)["matchedTerms"] == nil {
+				t.Errorf("resultado = %v", b)
+			}
+		}},
+		{"búsqueda por texto en kits", "/catalog/kits?q=biotina", 200, func(t *testing.T, b map[string]any) {
+			if b["total"] != 1.0 {
+				t.Errorf("total = %v", b["total"])
+			}
+		}},
+		{"q demasiado largo es 400", "/catalog/kits?q=" + strings.Repeat("a", 201), 400, nil},
 		{"kit por slug", "/catalog/kits/kit-caida", 200, nil},
 		{"kit inexistente es 404", "/catalog/kits/nope", 404, nil},
 		{"perfil desconocido en kits es 400", "/catalog/kits?perfil=caida-del-cabello", 400, nil},

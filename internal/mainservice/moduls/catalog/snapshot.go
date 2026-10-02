@@ -41,6 +41,7 @@ type product struct {
 	rubros      []string
 	variants    []map[string]any
 	links       []needLink
+	terms       terms // índice para la búsqueda por texto
 }
 
 type kitItem struct {
@@ -56,12 +57,13 @@ type kit struct {
 	needs    []string
 	perfiles []string
 	items    []kitItem
+	terms    terms // índice para la búsqueda por texto
 }
 
 var accentFolder = strings.NewReplacer("á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u", "ü", "u", "ñ", "n")
 
 // sortKey es la clave de ordenamiento alfabético: minúsculas y sin acentos.
-func sortKey(s string) string { return accentFolder.Replace(strings.ToLower(s)) }
+func sortKey(s string) string { return foldAccents(strings.ToLower(s)) }
 
 // buildSnapshot indexa los documentos crudos. Los documentos sin slug se omiten.
 func buildSnapshot(docs models.CatalogDocs, loadedAt time.Time) *Snapshot {
@@ -99,6 +101,7 @@ func buildSnapshot(docs models.CatalogDocs, loadedAt time.Time) *Snapshot {
 		if p.key != "" {
 			s.productByKey[p.key] = p
 		}
+		p.terms = productTerms(p)
 	}
 
 	for _, d := range docs.Kits {
@@ -116,6 +119,7 @@ func buildSnapshot(docs models.CatalogDocs, loadedAt time.Time) *Snapshot {
 		for _, it := range maps(m, "items") {
 			k.items = append(k.items, kitItem{raw: it, key: str(it, "key"), order: int(num(it["order"]))})
 		}
+		k.terms = kitTerms(k, s.productByKey)
 		s.kits = append(s.kits, k)
 		s.kitBySlug[k.slug] = k
 	}
