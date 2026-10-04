@@ -3,6 +3,9 @@ package catalog
 import (
 	"reflect"
 	"testing"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 func TestNormalize(t *testing.T) {
@@ -85,6 +88,22 @@ func TestProductSearch(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("cada necesidad de la vista corta trae su texto contextual", func(t *testing.T) {
+		docs := fixture()
+		links := docs.Products[0]["needs"].(bson.A)
+		links[0].(bson.M)["copy"] = bson.M{"micro": "Anticaída", "short": "Ayuda a fortalecer el cabello"}
+		s := buildSnapshot(docs, time.Unix(0, 0))
+		items, _, _ := s.ProductList(ProductFilter{Query: "bergamota", Limit: 50})
+		needs := items[0]["needs"].([]any)
+		first := needs[0].(map[string]any)
+		if c, ok := first["copy"].(map[string]any); !ok || c["short"] != "Ayuda a fortalecer el cabello" {
+			t.Errorf("needs[0] = %v", first)
+		}
+		if _, ok := needs[1].(map[string]any)["copy"]; ok {
+			t.Error("una liga sin texto no debe traer copy")
+		}
+	})
 
 	t.Run("la vista corta trae los textos de lámina", func(t *testing.T) {
 		items, _, _ := s.ProductList(ProductFilter{Query: "bergamota", Limit: 50})

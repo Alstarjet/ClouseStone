@@ -82,9 +82,19 @@ func productLite(p *product) map[string]any {
 	if ings, ok := r["ingredients"]; ok {
 		out["ingredients"] = ings
 	}
+	// Cada liga lleva su texto contextual (copy.micro/short): en qué ayuda el
+	// producto con esa necesidad, para mostrarlo en la lámina de un kit.
+	// p.links sale de r["needs"] en el mismo orden.
+	rawNeeds := maps(r, "needs")
 	needs := make([]any, 0, len(p.links))
-	for _, l := range p.links {
-		needs = append(needs, map[string]any{"need": l.need, "relevance": l.relevance, "role": l.role})
+	for i, l := range p.links {
+		entry := map[string]any{"need": l.need, "relevance": l.relevance, "role": l.role}
+		if i < len(rawNeeds) {
+			if c := sub(rawNeeds[i], "copy"); c != nil {
+				entry["copy"] = c
+			}
+		}
+		needs = append(needs, entry)
 	}
 	out["needs"] = needs
 	return out
