@@ -17,6 +17,8 @@ import (
 
 const maxBodySize = 1 << 20 // 1MB
 
+// Login abre la sesión en el dispositivo que manda el cliente. No hay límite de dispositivos en ningún plan: cada uno
+// queda registrado con su propio refresh token y sólo se cierra con /CloseDevice desde ese mismo dispositivo.
 func Login(db *database.MongoClient) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
@@ -33,53 +35,16 @@ func Login(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		if user.TypeClient == "Quartz" {
-			var newD = true
-			for _, device := range Device.Devices {
-				if device.UUID == data.Device {
-					newD = false
-				}
-			}
-			if newD && len(Device.Devices) > 0 {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte(`{"error":"Ya existe un dispositivo ligado a esta cuenta, cierra la sesión del dispositivo vinculado para iniciar en uno nuevo"}`))
-				return
-			}
-		}
-
 		issueTokensAndRespond(db, w, user, Device, data.Device, true)
 	})
 }
 
+// LoginForce era la entrada del plan de un solo dispositivo (Quartz): desvinculaba los demás dispositivos.
+//
+// Deprecated: ya no hay límite de dispositivos. Se conserva para las versiones de la app que aún lo llaman y hace
+// exactamente lo mismo que Login (no cierra las otras sesiones).
 func LoginForce(db *database.MongoClient) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
-
-		user, data, err := authenticateUser(db, w, r)
-		if err != nil {
-			return
-		}
-
-		Device, err := devices.GetDevice(db, user, data.Device)
-		if err != nil {
-			log.Printf("LoginForce: get device error: %v", err)
-			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
-			return
-		}
-
-		if user.TypeClient == "Quartz" {
-			Device.Devices = []models.Device{}
-			filter := bson.D{{Key: "_id", Value: user.ID}}
-			if err := db.UpdateDevice(filter, Device); err != nil {
-				log.Printf("LoginForce: update device error: %v", err)
-				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
-				return
-			}
-		}
-
-		issueTokensAndRespond(db, w, user, Device, data.Device, true)
-	})
+	return Login(db)
 }
 
 // authenticateUser validates credentials and returns the user. Writes error response on failure.

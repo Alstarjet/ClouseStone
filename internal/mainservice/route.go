@@ -23,6 +23,7 @@ func NewRouter(server *Server) *mux.Router {
 
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/login", handlers.Login(server.mongoDB)).Methods(http.MethodPost)
+	// Obsoleto: igual que /login (ya no hay límite de dispositivos); se conserva para versiones viejas de la app.
 	router.Handle("/loginForce", handlers.LoginForce(server.mongoDB)).Methods(http.MethodPost)
 
 	return router
