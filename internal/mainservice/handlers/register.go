@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -47,6 +49,20 @@ func Register(db *database.MongoClient) http.Handler {
 			http.Error(w, `{"error":"el nombre es requerido"}`, http.StatusBadRequest)
 			return
 		}
+
+		// Aceptación de los documentos legales: la fecha la pone el servidor y se
+		// guarda con la versión aceptada como constancia (ver terms.go)
+		acceptedAt, termsVersion, err := termsAcceptance(req, time.Now())
+		if err != nil {
+			if errors.Is(err, errTermsVersion) {
+				http.Error(w, `{"error":"versión de los términos inválida"}`, http.StatusBadRequest)
+				return
+			}
+			http.Error(w, `{"error":"formato de solicitud inválido"}`, http.StatusBadRequest)
+			return
+		}
+		newData.TermsAcceptedAt = acceptedAt
+		newData.TermsVersion = termsVersion
 
 		// Check if user already exists
 		user, err := db.FindUser(newData.Email)
