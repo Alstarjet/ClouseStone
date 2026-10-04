@@ -15,6 +15,11 @@ type User struct {
 	Password   string             `bson:"password" json:"password"`
 	Phone      int64              `bson:"phone" json:"phone"`
 	TypeClient string             `bson:"typeclient"`
+	// Constancia de aceptación de los Términos, el Aviso de privacidad y la
+	// Política de cookies al registrarse: fecha del servidor y versión aceptada.
+	// json:"-" impide que el cliente las escriba directamente (ver handlers/terms.go).
+	TermsAcceptedAt *time.Time `bson:"termsacceptedat,omitempty" json:"-"`
+	TermsVersion    string     `bson:"termsversion,omitempty" json:"-"`
 }
 type UserDevices struct {
 	ID          primitive.ObjectID `bson:"_id"`
