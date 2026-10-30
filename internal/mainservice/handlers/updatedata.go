@@ -37,6 +37,13 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 			http.Error(w, `{"error":"invalid request format"}`, http.StatusBadRequest)
 			return
 		}
+		// Un campo desconocido en changedfields se rechaza antes de escribir
+		// nada: un 200 siempre significa que todo quedó guardado.
+		if err = clients.ValidateChangedFields(newData.Clients); err != nil {
+			log.Printf("UploadDataSchedule: %v", err)
+			http.Error(w, `{"error":"invalid changedfields"}`, http.StatusBadRequest)
+			return
+		}
 
 		emailRequest, ok := r.Context().Value(ctxkeys.Email).(string)
 		if !ok {
