@@ -99,6 +99,34 @@ func TestUploadDataRejectsWrongTypes(t *testing.T) {
 	}
 }
 
+// Un changedfields con un campo que no se puede editar rechaza TODO el respaldo
+// con 400 antes de tocar la base: nunca se responde 200 sin haber guardado.
+func TestUploadDataRejectsUnknownChangedFields(t *testing.T) {
+	oneBadClient := strings.Replace(validBackup, `"clients": [`,
+		`"clients": [{"uuid":"cli-2","name":"Luis","changedfields":["lastname","color"]},`, 1)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"campo que no existe", `{"clients":[{"uuid":"cli-1","changedfields":["color"]}]}`},
+		{"uuid", `{"clients":[{"uuid":"cli-1","changedfields":["uuid"]}]}`},
+		{"fecha de alta", `{"clients":[{"uuid":"cli-1","changedfields":["createat"]}]}`},
+		{"un cliente malo entre documentos válidos", oneBadClient},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serveUpload(t, nil, testEmail, testDeviceID, tt.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("código = %d; se esperaba 400 (cuerpo: %s)", rec.Code, rec.Body)
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"invalid changedfields"}` {
+				t.Errorf("cuerpo = %s", got)
+			}
+		})
+	}
+}
+
 // Si AuthMiddleware no dejó el email o el dispositivo en el contexto, el
 // handler responde 401 sin tocar la base.
 func TestUploadDataRequiresContext(t *testing.T) {
@@ -159,6 +187,13 @@ func TestRequestUpdateDecoding(t *testing.T) {
 			func(r models.RequestUpdate) bool { return r.Payments[0].Amount == 150 }},
 		{"fecha con zona horaria", `{"payments":[{"createat":"2026-10-20T09:07:00-06:00"}]}`,
 			func(r models.RequestUpdate) bool { return r.Payments[0].CreateAt.UTC().Hour() == 15 }},
+		{"tipo de cliente y campos cambiados", `{"clients":[{"type":"blacklist","changedfields":["type","lastname"]}]}`,
+			func(r models.RequestUpdate) bool {
+				c := r.Clients[0]
+				return c.Type == "blacklist" && len(c.ChangedFields) == 2 && c.ChangedFields[1] == "lastname"
+			}},
+		{"sin tipo ni campos cambiados (versión anterior de la app)", `{"clients":[{"uuid":"cli-1"}]}`,
+			func(r models.RequestUpdate) bool { return r.Clients[0].Type == "" && r.Clients[0].ChangedFields == nil }},
 		{"campos desconocidos se ignoran", `{"clients":[{"uuid":"cli-1","color":"rojo"}],"extra":true}`,
 			func(r models.RequestUpdate) bool { return r.Clients[0].UUID == "cli-1" }},
 		{"colecciones ausentes", `{}`,

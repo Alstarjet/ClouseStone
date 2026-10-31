@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/database/mongotest"
 	"financial-Assistant/internal/mainservice/models"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -160,5 +165,162 @@ func TestUploadDataUpsertsByUUID(t *testing.T) {
 		if got := others[coll]; len(got) != 1 || got[0].id == first[coll][0].id {
 			t.Errorf("%s de otro usuario = %+v; se esperaba un documento propio", coll, got)
 		}
+	}
+}
+
+// clientUpload arma un respaldo con un solo cliente: la copia completa que
+// tiene el dispositivo, con su tipo y los campos que cambió (si los hay).
+func clientUpload(t *testing.T, name, lastname, clientType string, changed ...string) string {
+	t.Helper()
+	client := map[string]any{
+		"uuid": "cli-1", "name": name, "lastname": lastname, "age": 40, "city": "Puebla",
+		"neighborhood": "Centro", "address": "5 de Mayo 10", "phone": "2221234567", "daywork": "lunes",
+		"createat": "2026-10-20T15:04:05Z", "updateat": "2026-10-30T15:04:05Z", "status": "active",
+	}
+	if clientType != "" {
+		client["type"] = clientType
+	}
+	if changed != nil {
+		client["changedfields"] = changed
+	}
+	body, err := json.Marshal(map[string]any{"clients": []any{client}, "deviceid": testDeviceID})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	return string(body)
+}
+
+func mustUpload(t *testing.T, db *database.MongoClient, email, body string) {
+	t.Helper()
+	if rec := serveUpload(t, db, email, testDeviceID, body); rec.Code != http.StatusOK {
+		t.Fatalf("respaldo: código = %d (%s)", rec.Code, rec.Body)
+	}
+}
+
+// storedClient lee cli-1 del usuario tal como quedó en Mongo (y que sea uno solo).
+func storedClient(t *testing.T, db *database.MongoClient, userID primitive.ObjectID) models.Client {
+	t.Helper()
+	clients, err := db.FindAllClients(bson.D{{Key: "usermongoid", Value: userID.Hex()}})
+	if err != nil || len(clients) != 1 {
+		t.Fatalf("clientes guardados = %+v, %v; se esperaba uno", clients, err)
+	}
+	return clients[0]
+}
+
+// serveGetDataSince baja lo que llegó desde since, como otro dispositivo.
+func serveGetDataSince(t *testing.T, db *database.MongoClient, email string, since time.Time) []map[string]any {
+	t.Helper()
+	ctx := context.WithValue(context.Background(), ctxkeys.Email, email)
+	target := "/GetDataSince?since=" + url.QueryEscape(since.Format(time.RFC3339Nano))
+	req := httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	GetDataSince(db).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GetDataSince: código = %d (%s)", rec.Code, rec.Body)
+	}
+	var resp struct {
+		Clients []map[string]any `json:"clients"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("GetDataSince: respuesta no es JSON: %v (%s)", err, rec.Body)
+	}
+	return resp.Clients
+}
+
+// Mandar a lista negra sólo cambia "type" y le llega al otro dispositivo en la
+// siguiente descarga (backupat se vuelve a sellar), sin changedfields.
+func TestUploadDataClientTypeReachesOtherDevices(t *testing.T) {
+	db := mongotest.Connect(t)
+	user := registerUser(t, db, testEmail)
+	mustUpload(t, db, testEmail, clientUpload(t, "Ana", "López", ""))
+
+	since := time.Now().UTC()
+	time.Sleep(5 * time.Millisecond)
+	mustUpload(t, db, testEmail, clientUpload(t, "Ana", "López", "blacklist", "type"))
+
+	if c := storedClient(t, db, user.ID); c.Type != "blacklist" || c.Lastname != "López" {
+		t.Errorf("cliente guardado = %+v", c)
+	}
+	down := serveGetDataSince(t, db, testEmail, since)
+	if len(down) != 1 || down[0]["uuid"] != "cli-1" || down[0]["type"] != "blacklist" {
+		t.Fatalf("baja = %v; se esperaba cli-1 con type blacklist", down)
+	}
+	if _, ok := down[0]["changedfields"]; ok {
+		t.Errorf("baja con changedfields: %v", down[0])
+	}
+}
+
+// El caso de dos dispositivos sin sincronizar: A manda al cliente a lista
+// negra y B le corrige el apellido. En cualquier orden se quedan los dos cambios.
+func TestUploadDataChangedFieldsKeepOtherDevices(t *testing.T) {
+	db := mongotest.Connect(t)
+	fromA := clientUpload(t, "Ana", "Lopez", "blacklist", "type")
+	fromB := clientUpload(t, "Ana", "López Ruiz", "", "lastname")
+
+	tests := []struct {
+		name, email string
+		uploads     []string
+	}{
+		{"A y luego B", "orden-ab@ejemplo.mx", []string{fromA, fromB}},
+		{"B y luego A", "orden-ba@ejemplo.mx", []string{fromB, fromA}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := registerUser(t, db, tt.email)
+			mustUpload(t, db, tt.email, clientUpload(t, "Ana", "Lopez", ""))
+			first := storedClient(t, db, user.ID)
+			for _, body := range tt.uploads {
+				mustUpload(t, db, tt.email, body)
+			}
+			c := storedClient(t, db, user.ID)
+			if c.Type != "blacklist" || c.Lastname != "López Ruiz" || c.Name != "Ana" || c.City != "Puebla" {
+				t.Errorf("cliente guardado = %+v; se esperaba lista negra y el apellido corregido", c)
+			}
+			if c.ID != first.ID {
+				t.Errorf("_id cambió: %s → %s", first.ID.Hex(), c.ID.Hex())
+			}
+		})
+	}
+}
+
+func TestUploadDataClientTypeChanges(t *testing.T) {
+	blacklisted := clientUpload(t, "Ana", "López", "blacklist")
+	tests := []struct {
+		name     string
+		uploads  []string
+		wantName string
+		wantType string
+	}{
+		// Una versión de la app que no conoce el campo manda el documento
+		// completo sin type: actualiza lo demás y no saca al cliente de la lista.
+		{"respaldo sin changedfields no borra la lista negra",
+			[]string{blacklisted, clientUpload(t, "Ana María", "López", "")}, "Ana María", "blacklist"},
+		{"sacar de la lista negra quita el campo",
+			[]string{blacklisted, clientUpload(t, "Ana", "López", "", "type")}, "Ana", ""},
+		{"un cliente nuevo con changedfields se guarda completo",
+			[]string{clientUpload(t, "Ana", "López", "", "lastname")}, "Ana", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := mongotest.Connect(t)
+			user := registerUser(t, db, testEmail)
+			for _, body := range tt.uploads {
+				mustUpload(t, db, testEmail, body)
+			}
+			c := storedClient(t, db, user.ID)
+			if c.Name != tt.wantName || c.Type != tt.wantType || c.City != "Puebla" {
+				t.Errorf("cliente guardado = %+v", c)
+			}
+			withType, err := db.FindAllClients(bson.D{
+				{Key: "usermongoid", Value: user.ID.Hex()},
+				{Key: "type", Value: bson.M{"$exists": true}},
+			})
+			if err != nil {
+				t.Fatalf("FindAllClients: %v", err)
+			}
+			if stored, want := len(withType) == 1, tt.wantType != ""; stored != want {
+				t.Errorf("¿type guardado en Mongo? = %v; se esperaba %v", stored, want)
+			}
+		})
 	}
 }
