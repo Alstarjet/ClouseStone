@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"financial-Assistant/internal/mainservice/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -33,6 +34,21 @@ func (mc *MongoClient) UpdateClient(filter interface{}, client models.Client) er
 	collection := mc.client.Database(DataBase).Collection(clients)
 	_, err := collection.UpdateOne(context.Background(), filter, update)
 	return err
+}
+
+// PatchClient aplica update (sólo los campos que cambiaron) al cliente del
+// filtro. Si el cliente no existe regresa error: el respaldo no responde 200
+// sin haber guardado.
+func (mc *MongoClient) PatchClient(filter interface{}, update bson.M) error {
+	collection := mc.client.Database(DataBase).Collection(clients)
+	res, err := collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return errors.New("PatchClient: el cliente no existe")
+	}
+	return nil
 }
 func (mc *MongoClient) FindAllClients(filter interface{}) ([]models.Client, error) {
 	collection := mc.client.Database(DataBase).Collection(clients)
