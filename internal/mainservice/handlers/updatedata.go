@@ -56,6 +56,10 @@ func UploadDataSchedule(db *database.MongoClient) http.Handler {
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
+		// La versión gratis no respalda en línea: 403 antes de escribir nada
+		if !allowsCloudBackup(w, user) {
+			return
+		}
 
 		clietsIDs, err := clients.ClientsUploadStone(db, newData.Clients, user)
 		if err != nil {

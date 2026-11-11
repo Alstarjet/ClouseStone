@@ -36,6 +36,10 @@ func Sync(db *database.MongoClient) http.Handler {
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
+		// La versión gratis no sincroniza: 403 sin leer el cuerpo ni escribir nada
+		if !allowsCloudBackup(w, user) {
+			return
+		}
 
 		var req models.SyncRequest
 		body, err := io.ReadAll(r.Body)

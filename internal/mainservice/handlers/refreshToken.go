@@ -105,13 +105,12 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		response := models.JWTresponce{
+		response := withPlan(models.JWTresponce{
 			Toke:         accessToken,
 			Expires:      expiresJWT,
 			UserName:     user.Name,
-			TypeClient:   user.TypeClient,
 			RefreshToken: rotatedRefreshToken,
-		}
+		}, user)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
