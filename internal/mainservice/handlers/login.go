@@ -105,13 +105,12 @@ func issueTokensAndRespond(db *database.MongoClient, w http.ResponseWriter, user
 		return
 	}
 
-	response := models.JWTresponce{
+	response := withPlan(models.JWTresponce{
 		Toke:         accessToken,
 		Expires:      expiresJWT,
 		UserName:     user.Name + " " + user.LastName,
-		TypeClient:   user.TypeClient,
 		RefreshToken: refreshToken,
-	}
+	}, user)
 
 	if includeData {
 		response.Data = consultDataForNewDevice(db, user)

@@ -19,7 +19,8 @@ import (
 )
 
 // Estas pruebas necesitan MongoDB: se saltan si no está CLOUSESTONE_TEST_MONGO_URI
-// (ver mongotest).
+// (ver mongotest). Las cuentas que respaldan son del plan de pago (registerPaidUser):
+// la versión gratis no respalda (plans_mongo_test.go).
 
 func registerUser(t *testing.T, db *database.MongoClient, email string) models.User {
 	t.Helper()
@@ -78,7 +79,7 @@ var backupUUIDs = map[string]string{"clients": "cli-1", "charges": "car-1", "ord
 
 func TestUploadDataBackup(t *testing.T) {
 	db := mongotest.Connect(t)
-	user := registerUser(t, db, testEmail)
+	user := registerPaidUser(t, db, testEmail)
 
 	rec := serveUpload(t, db, testEmail, testDeviceID, validBackup)
 	if rec.Code != http.StatusOK {
@@ -93,7 +94,7 @@ func TestUploadDataBackup(t *testing.T) {
 	}
 	// ⚠️ El estado viaja con la clave "reports", no "status" (models.BackupResponse;
 	// documentado en endpoints/data-uploaddata.md). La PWA sólo lee el código HTTP.
-	want := map[string]any{"message": "Datos Respaldados con Éxito", "reports": float64(200), "typeclient": "Quartz"}
+	want := map[string]any{"message": "Datos Respaldados con Éxito", "reports": float64(200), "typeclient": "Amethyst"}
 	for k, v := range want {
 		if resp[k] != v {
 			t.Errorf("respuesta[%q] = %v; se esperaba %v", k, resp[k], v)
@@ -126,8 +127,8 @@ func TestUploadDataBackup(t *testing.T) {
 // el uuid sólo identifica dentro de cada usuario.
 func TestUploadDataUpsertsByUUID(t *testing.T) {
 	db := mongotest.Connect(t)
-	user := registerUser(t, db, testEmail)
-	other := registerUser(t, db, "luis@ejemplo.mx")
+	user := registerPaidUser(t, db, testEmail)
+	other := registerPaidUser(t, db, "luis@ejemplo.mx")
 
 	if rec := serveUpload(t, db, testEmail, testDeviceID, validBackup); rec.Code != http.StatusOK {
 		t.Fatalf("primer respaldo: código = %d (%s)", rec.Code, rec.Body)
@@ -231,7 +232,7 @@ func serveGetDataSince(t *testing.T, db *database.MongoClient, email string, sin
 // siguiente descarga (backupat se vuelve a sellar), sin changedfields.
 func TestUploadDataClientTypeReachesOtherDevices(t *testing.T) {
 	db := mongotest.Connect(t)
-	user := registerUser(t, db, testEmail)
+	user := registerPaidUser(t, db, testEmail)
 	mustUpload(t, db, testEmail, clientUpload(t, "Ana", "López", ""))
 
 	since := time.Now().UTC()
@@ -266,7 +267,7 @@ func TestUploadDataChangedFieldsKeepOtherDevices(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user := registerUser(t, db, tt.email)
+			user := registerPaidUser(t, db, tt.email)
 			mustUpload(t, db, tt.email, clientUpload(t, "Ana", "Lopez", ""))
 			first := storedClient(t, db, user.ID)
 			for _, body := range tt.uploads {
@@ -303,7 +304,7 @@ func TestUploadDataClientTypeChanges(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := mongotest.Connect(t)
-			user := registerUser(t, db, testEmail)
+			user := registerPaidUser(t, db, testEmail)
 			for _, body := range tt.uploads {
 				mustUpload(t, db, testEmail, body)
 			}
