@@ -28,9 +28,10 @@ type JWTresponce struct {
 	// X-Refresh-Token. En /GetJwt solo se incluye cuando el token rotó.
 	RefreshToken string `json:"refreshtoken,omitempty"`
 	// Reglas del plan (moduls/plans) y su vigencia, para que la app sepa qué puede
-	// hacer: si respalda en línea, su tope de clientes y cuándo vence (null = sin
-	// fecha). Viajan en el login y en cada /GetJwt, así un cambio de plan llega en
-	// la siguiente renovación del token.
+	// hacer: si respalda en línea, su tope de clientes (el del plan o el propio de
+	// la cuenta, users.clientlimit) y cuándo vence (null = sin fecha). Viajan en el
+	// login y en cada /GetJwt, así un cambio de plan o de tope llega en la siguiente
+	// renovación del token.
 	CloudBackup   bool       `json:"cloudbackup"`
 	ClientLimit   int        `json:"clientlimit"`
 	PlanExpiresAt *time.Time `json:"planexpiresat"`

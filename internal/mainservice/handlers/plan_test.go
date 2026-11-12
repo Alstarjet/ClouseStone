@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"financial-Assistant/internal/mainservice/models"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // El login y /GetJwt regresan, junto al plan de siempre (typeclient), sus reglas
@@ -25,6 +30,8 @@ func TestWithPlan(t *testing.T) {
 		{"plan de pago con vigencia", models.User{TypeClient: "Amethyst", PlanExpiresAt: &expires}, true, 300, "2027-11-10T23:59:59Z"},
 		{"plan de pago sin fecha", models.User{TypeClient: "Amethyst"}, true, 300, nil},
 		{"plan desconocido", models.User{TypeClient: "Diamond"}, false, 50, nil},
+		{"plan de pago ampliado a 500", models.User{TypeClient: "Amethyst", ClientLimit: 500}, true, 500, nil},
+		{"versión gratis con tope propio: no cuenta", models.User{TypeClient: "Quartz", ClientLimit: 500}, false, 50, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,6 +56,32 @@ func TestWithPlan(t *testing.T) {
 				t.Errorf("planexpiresat = %v (¿está? %v); se esperaba %v", value, ok, tt.wantExpires)
 			}
 		})
+	}
+}
+
+// Un clientlimit mal escrito a mano no cuenta (vale el tope del plan) y queda en el
+// log con la cuenta, para corregirlo en la base.
+func TestWithPlanIgnoresAnInvalidAccountLimit(t *testing.T) {
+	id := primitive.NewObjectID()
+	doc, err := bson.Marshal(bson.D{{Key: "_id", Value: id}, {Key: "typeclient", Value: "Amethyst"}, {Key: "clientlimit", Value: "500"}})
+	if err != nil {
+		t.Fatalf("bson.Marshal: %v", err)
+	}
+	var user models.User
+	if err := bson.Unmarshal(doc, &user); err != nil {
+		t.Fatalf("la cuenta no se pudo leer: %v", err)
+	}
+	var out bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&out)
+	t.Cleanup(func() { log.SetOutput(previous) })
+
+	response := withPlan(models.JWTresponce{}, user)
+	if !response.CloudBackup || response.ClientLimit != 300 {
+		t.Errorf("cloudbackup = %v, clientlimit = %d; se esperaba true y 300", response.CloudBackup, response.ClientLimit)
+	}
+	if logged := out.String(); !strings.Contains(logged, "clientlimit no válido") || !strings.Contains(logged, id.Hex()) {
+		t.Errorf("el log no dice qué cuenta tiene el clientlimit mal: %q", logged)
 	}
 }
 
