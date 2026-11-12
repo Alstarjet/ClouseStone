@@ -44,6 +44,23 @@ func setPlan(t *testing.T, db *database.MongoClient, email, typeclient string, e
 	}
 }
 
+// setClientLimit le pone a la cuenta su propio tope de clientes (users.clientlimit),
+// como se hace a mano en la base; nil se lo quita.
+func setClientLimit(t *testing.T, db *database.MongoClient, email string, value any) {
+	t.Helper()
+	update := bson.M{"$set": bson.M{"clientlimit": value}}
+	if value == nil {
+		update = bson.M{"$unset": bson.M{"clientlimit": ""}}
+	}
+	result, err := mongotest.Raw(t, db).Collection("users").UpdateOne(context.Background(), bson.M{"email": email}, update)
+	if err != nil {
+		t.Fatalf("setClientLimit(%q): %v", email, err)
+	}
+	if result.MatchedCount != 1 {
+		t.Fatalf("setClientLimit(%q): %d cuentas; se esperaba una", email, result.MatchedCount)
+	}
+}
+
 // registerPaidUser registra la cuenta y le pone el plan de pago, como se hace a mano.
 func registerPaidUser(t *testing.T, db *database.MongoClient, email string) models.User {
 	t.Helper()
@@ -213,17 +230,26 @@ func TestLoginAndGetJwtReturnThePlan(t *testing.T) {
 		email      string
 		typeclient string
 		expires    *time.Time
-		wantBackup bool
-		wantLimit  float64
+		// Tope propio de la cuenta (users.clientlimit) como se escriba a mano; nil: no tiene
+		clientLimit any
+		wantBackup  bool
+		wantLimit   float64
 	}{
-		{"versión gratis, sin fecha", "gratis-login@ejemplo.mx", plans.Free, nil, false, 50},
-		{"plan de pago con vigencia", "pago-login@ejemplo.mx", plans.Paid, &expires, true, 300},
-		{"plan desconocido: como la versión gratis", "raro-login@ejemplo.mx", "Diamond", nil, false, 50},
+		{"versión gratis, sin fecha", "gratis-login@ejemplo.mx", plans.Free, nil, nil, false, 50},
+		{"plan de pago con vigencia", "pago-login@ejemplo.mx", plans.Paid, &expires, nil, true, 300},
+		{"plan desconocido: como la versión gratis", "raro-login@ejemplo.mx", "Diamond", nil, nil, false, 50},
+		{"plan de pago ampliado a 500", "ampliado-login@ejemplo.mx", plans.Paid, nil, int32(500), true, 500},
+		{"tope propio guardado como decimal", "decimal-login@ejemplo.mx", plans.Paid, nil, float64(500), true, 500},
+		{"versión gratis con tope propio: no cuenta", "gratis-tope@ejemplo.mx", plans.Free, nil, int32(500), false, 50},
+		{"tope propio mal escrito: entra con el del plan", "texto-tope@ejemplo.mx", plans.Paid, nil, "500", true, 300},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			user := registerWithPassword(t, db, tt.email)
 			setPlan(t, db, tt.email, tt.typeclient, tt.expires)
+			if tt.clientLimit != nil {
+				setClientLimit(t, db, tt.email, tt.clientLimit)
+			}
 
 			login := serveLogin(t, db, tt.email, "dispositivo-plan")
 			checkPlan(t, "login", login, tt.typeclient, tt.wantBackup, tt.wantLimit, tt.expires)
@@ -248,12 +274,39 @@ func TestGetJwtBringsAPlanChange(t *testing.T) {
 	checkPlan(t, "/GetJwt", renewed, plans.Paid, true, 300, &expires)
 }
 
-// Nadie se pone el plan de pago ni una vigencia al registrarse.
+// Ampliarle el tope a una cuenta de pago (a mano en la base) le llega a la app en la
+// siguiente renovación del token, sin volver a entrar; quitárselo la regresa al del plan.
+func TestGetJwtBringsAnAccountLimitChange(t *testing.T) {
+	db := mongotest.Connect(t)
+	const email = "ampliacion@ejemplo.mx"
+	const device = "dispositivo-ampliacion"
+	user := registerWithPassword(t, db, email)
+	setPlan(t, db, email, plans.Paid, nil)
+	session := serveLogin(t, db, email, device)
+	checkPlan(t, "login", session, plans.Paid, true, 300, nil)
+
+	renew := func() map[string]any {
+		renewed := serveGetJwt(t, db, user, device, session)
+		// Si el servidor rotó el refresh token, la siguiente renovación usa el nuevo
+		if rotated, ok := renewed["refreshtoken"].(string); ok && rotated != "" {
+			session["refreshtoken"] = rotated
+		}
+		return renewed
+	}
+
+	setClientLimit(t, db, email, int32(500))
+	checkPlan(t, "/GetJwt con tope propio", renew(), plans.Paid, true, 500, nil)
+
+	setClientLimit(t, db, email, nil)
+	checkPlan(t, "/GetJwt sin tope propio", renew(), plans.Paid, true, 300, nil)
+}
+
+// Nadie se pone el plan de pago, una vigencia ni su propio tope al registrarse.
 func TestRegisterAlwaysStartsFree(t *testing.T) {
 	db := mongotest.Connect(t)
 	body := `{"name":"Ana","lastname":"López","email":"nueva@ejemplo.mx","password":"clave-de-prueba-1",
 		"phone":2221234567,"termsaccepted":true,"termsversion":"2026-10-02",
-		"typeclient":"Amethyst","planexpiresat":"2030-01-01T00:00:00Z"}`
+		"typeclient":"Amethyst","planexpiresat":"2030-01-01T00:00:00Z","clientlimit":5000}`
 	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	Register(db).ServeHTTP(rec, req)
@@ -266,5 +319,12 @@ func TestRegisterAlwaysStartsFree(t *testing.T) {
 	}
 	if user.TypeClient != plans.Free || user.PlanExpiresAt != nil {
 		t.Errorf("cuenta nueva: plan = %q, vigencia = %v; se esperaba %q sin fecha", user.TypeClient, user.PlanExpiresAt, plans.Free)
+	}
+	var stored bson.M
+	if err := mongotest.Raw(t, db).Collection("users").FindOne(context.Background(), bson.M{"email": "nueva@ejemplo.mx"}).Decode(&stored); err != nil {
+		t.Fatalf("FindOne: %v", err)
+	}
+	if value, ok := stored["clientlimit"]; ok {
+		t.Errorf("la cuenta nueva quedó con tope propio: %v", value)
 	}
 }
