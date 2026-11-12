@@ -22,8 +22,8 @@ func TestWithPlan(t *testing.T) {
 		wantExpires any
 	}{
 		{"versión gratis, sin fecha", models.User{TypeClient: "Quartz"}, false, 50, nil},
-		{"plan de pago con vigencia", models.User{TypeClient: "Amethyst", PlanExpiresAt: &expires}, true, 200, "2027-11-10T23:59:59Z"},
-		{"plan de pago sin fecha", models.User{TypeClient: "Amethyst"}, true, 200, nil},
+		{"plan de pago con vigencia", models.User{TypeClient: "Amethyst", PlanExpiresAt: &expires}, true, 300, "2027-11-10T23:59:59Z"},
+		{"plan de pago sin fecha", models.User{TypeClient: "Amethyst"}, true, 300, nil},
 		{"plan desconocido", models.User{TypeClient: "Diamond"}, false, 50, nil},
 	}
 	for _, tt := range tests {

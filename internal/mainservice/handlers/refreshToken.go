@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
@@ -32,7 +33,10 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		user, err := db.FindUserByID(userID)
+		ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+		defer cancel()
+
+		user, err := db.FindUserByID(ctx, userID)
 		if err != nil {
 			log.Printf("RefreshToken: find user error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
@@ -40,7 +44,7 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 		}
 
 		filter := bson.D{{Key: "_id", Value: user.ID}}
-		deviceDoc, err := db.FindDevice(filter)
+		deviceDoc, err := db.FindDevice(ctx, filter)
 		if err != nil {
 			log.Printf("RefreshToken: find device error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
@@ -82,7 +86,8 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 					return
 				}
 				newHash := utilities.HashToken(newRefreshToken)
-				if err = db.UpdateDeviceRefreshToken(deviceDoc.ID, deviceID, newHash, expires); err != nil {
+				// Escritura atómica del token de este dispositivo (no reescribe el documento)
+				if _, err = db.UpdateDeviceRefreshToken(ctx, deviceDoc.ID, deviceID, newHash, expires); err != nil {
 					log.Printf("RefreshToken: update refresh token error: %v", err)
 					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 					return

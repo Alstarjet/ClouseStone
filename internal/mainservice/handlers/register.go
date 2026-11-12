@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"financial-Assistant/internal/mainservice/database"
@@ -64,8 +65,11 @@ func Register(db *database.MongoClient) http.Handler {
 		newData.TermsAcceptedAt = acceptedAt
 		newData.TermsVersion = termsVersion
 
+		ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+		defer cancel()
+
 		// Check if user already exists
-		user, err := db.FindUser(newData.Email)
+		user, err := db.FindUser(ctx, newData.Email)
 		if err == nil && user.Email != "" {
 			http.Error(w, `{"error":"email ya en uso, prueba con otro"}`, http.StatusConflict)
 			return
@@ -80,7 +84,7 @@ func Register(db *database.MongoClient) http.Handler {
 
 		newData.Password = string(hashedPassword)
 
-		result, err := db.RegisterUser(&newData)
+		result, err := db.RegisterUser(ctx, &newData)
 		if err != nil {
 			log.Printf("Register: insert user error: %v", err)
 			http.Error(w, `{"error":"error al registrar el usuario"}`, http.StatusInternalServerError)

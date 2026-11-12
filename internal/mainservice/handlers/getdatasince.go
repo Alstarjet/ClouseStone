@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
@@ -28,7 +29,10 @@ func GetDataSince(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		user, err := db.FindUser(emailRequest)
+		ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+		defer cancel()
+
+		user, err := db.FindUser(ctx, emailRequest)
 		if err != nil {
 			log.Printf("GetDataSince: find user error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
@@ -51,22 +55,22 @@ func GetDataSince(db *database.MongoClient) http.Handler {
 		}
 
 		response := models.AllDataSince{ServerTime: serverTime}
-		if response.Clients, err = db.FindAllClients(filter); err != nil {
+		if response.Clients, err = db.FindAllClients(ctx, filter); err != nil {
 			log.Printf("GetDataSince: clients error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		if response.Charges, err = db.FindAllCharges(filter); err != nil {
+		if response.Charges, err = db.FindAllCharges(ctx, filter); err != nil {
 			log.Printf("GetDataSince: charges error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		if response.Orders, err = db.FindAllOrders(filter); err != nil {
+		if response.Orders, err = db.FindAllOrders(ctx, filter); err != nil {
 			log.Printf("GetDataSince: orders error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
-		if response.Payments, err = db.FindAllPayments(filter); err != nil {
+		if response.Payments, err = db.FindAllPayments(ctx, filter); err != nil {
 			log.Printf("GetDataSince: payments error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return

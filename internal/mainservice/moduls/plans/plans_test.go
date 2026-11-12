@@ -16,7 +16,7 @@ func TestFor(t *testing.T) {
 		wantLog    bool
 	}{
 		{"versión gratis", "Quartz", free, false},
-		{"plan de pago", "Amethyst", Rules{CloudBackup: true, ClientLimit: 200}, false},
+		{"plan de pago", "Amethyst", Rules{CloudBackup: true, ClientLimit: 300}, false},
 		{"plan vacío: como la versión gratis", "", free, true},
 		{"plan desconocido: como la versión gratis", "Diamond", free, true},
 		{"con otras mayúsculas es otro plan", "amethyst", free, true},

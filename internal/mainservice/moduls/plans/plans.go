@@ -10,7 +10,7 @@ import "log"
 // Rules son las reglas de un plan.
 type Rules struct {
 	// CloudBackup: respaldo en línea, sincronización y varios dispositivos. Sin él,
-	// /UploadData y /sync responden 403 plan_without_backup y no guardan nada.
+	// /UploadData responde 403 plan_without_backup y no guarda nada.
 	CloudBackup bool
 	// ClientLimit: tope de clientes. El backend sólo lo informa en el login y en
 	// /GetJwt; lo cuida el frontend.
@@ -25,7 +25,7 @@ const Paid = "Amethyst"
 
 var rules = map[string]Rules{
 	Free: {CloudBackup: false, ClientLimit: 50},
-	Paid: {CloudBackup: true, ClientLimit: 200},
+	Paid: {CloudBackup: true, ClientLimit: 300},
 }
 
 // For regresa las reglas del plan. Un plan desconocido o vacío se trata como la
