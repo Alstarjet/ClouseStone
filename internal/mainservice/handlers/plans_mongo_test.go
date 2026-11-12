@@ -20,7 +20,7 @@ import (
 )
 
 // Planes con MongoDB (se saltan sin CLOUSESTONE_TEST_MONGO_URI, ver mongotest):
-//   - la versión gratis, o un plan desconocido, no respalda ni sincroniza: 403 y nada escrito;
+//   - la versión gratis, o un plan desconocido, no respalda: 403 y nada escrito;
 //   - el plan de pago guarda todo lo que manda, aunque pase de su tope o ya haya vencido;
 //   - el login y /GetJwt regresan las reglas del plan y su vigencia;
 //   - registrarse siempre deja la versión gratis, sin fecha.
@@ -77,7 +77,7 @@ func TestUploadDataWithoutCloudBackupIsRejected(t *testing.T) {
 			if docs := storedDocs(t, db, user.ID); len(docs) != 0 {
 				t.Errorf("se guardó algo: %+v", docs)
 			}
-			if _, err := db.FindDevice(bson.D{{Key: "_id", Value: user.ID}}); err == nil {
+			if _, err := db.FindDevice(context.Background(), bson.D{{Key: "_id", Value: user.ID}}); err == nil {
 				t.Error("se anotó el dispositivo de una cuenta que no respalda")
 			}
 		})
@@ -126,56 +126,6 @@ func TestUploadDataPaidPlanSavesEverything(t *testing.T) {
 	})
 }
 
-// serveSync manda una sincronización v2 (POST /sync) como lo haría un dispositivo.
-func serveSync(t *testing.T, db *database.MongoClient, email, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	ctx := context.WithValue(context.Background(), ctxkeys.Email, email)
-	req := httptest.NewRequest(http.MethodPost, "/sync", strings.NewReader(body)).WithContext(ctx)
-	rec := httptest.NewRecorder()
-	Sync(db).ServeHTTP(rec, req)
-	return rec
-}
-
-const syncOneClient = `{"since":null,"changes":{"clients":[{"uuid":"cli-sync","name":"Ana","lastname":"López",
-	"age":40,"createat":"2026-11-10T10:00:00Z","updateat":"2026-11-10T10:00:00Z","status":"active"}]}}`
-
-func TestSyncByPlan(t *testing.T) {
-	db := mongotest.Connect(t)
-
-	t.Run("la versión gratis no sincroniza: 403 y nada escrito", func(t *testing.T) {
-		user := registerUser(t, db, "gratis-sync@ejemplo.mx")
-		rec := serveSync(t, db, "gratis-sync@ejemplo.mx", syncOneClient)
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("código = %d; se esperaba 403 (cuerpo: %s)", rec.Code, rec.Body)
-		}
-		if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"plan_without_backup"}` {
-			t.Errorf("cuerpo = %s", got)
-		}
-		changed, err := db.FindClientsChangedSince(context.Background(), user.ID.Hex(), nil)
-		if err != nil {
-			t.Fatalf("FindClientsChangedSince: %v", err)
-		}
-		if len(changed) != 0 {
-			t.Errorf("se guardó algo: %+v", changed)
-		}
-	})
-
-	t.Run("el plan de pago sincroniza como siempre", func(t *testing.T) {
-		user := registerPaidUser(t, db, "pago-sync@ejemplo.mx")
-		rec := serveSync(t, db, "pago-sync@ejemplo.mx", syncOneClient)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("código = %d; se esperaba 200 (cuerpo: %s)", rec.Code, rec.Body)
-		}
-		changed, err := db.FindClientsChangedSince(context.Background(), user.ID.Hex(), nil)
-		if err != nil {
-			t.Fatalf("FindClientsChangedSince: %v", err)
-		}
-		if len(changed) != 1 || changed[0].UUID != "cli-sync" {
-			t.Errorf("guardados = %+v; se esperaba cli-sync", changed)
-		}
-	})
-}
-
 // registerWithPassword registra una cuenta que puede entrar con testPassword.
 func registerWithPassword(t *testing.T, db *database.MongoClient, email string) models.User {
 	t.Helper()
@@ -184,7 +134,7 @@ func registerWithPassword(t *testing.T, db *database.MongoClient, email string) 
 		t.Fatalf("bcrypt: %v", err)
 	}
 	user := models.User{Name: "Ana", LastName: "López", Email: email, Password: string(hashed)}
-	if _, err := db.RegisterUser(&user); err != nil {
+	if _, err := db.RegisterUser(context.Background(), &user); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 	return user
@@ -267,7 +217,7 @@ func TestLoginAndGetJwtReturnThePlan(t *testing.T) {
 		wantLimit  float64
 	}{
 		{"versión gratis, sin fecha", "gratis-login@ejemplo.mx", plans.Free, nil, false, 50},
-		{"plan de pago con vigencia", "pago-login@ejemplo.mx", plans.Paid, &expires, true, 200},
+		{"plan de pago con vigencia", "pago-login@ejemplo.mx", plans.Paid, &expires, true, 300},
 		{"plan desconocido: como la versión gratis", "raro-login@ejemplo.mx", "Diamond", nil, false, 50},
 	}
 	for _, tt := range tests {
@@ -295,7 +245,7 @@ func TestGetJwtBringsAPlanChange(t *testing.T) {
 	expires := time.Date(2027, 11, 10, 23, 59, 59, 0, time.UTC)
 	setPlan(t, db, email, plans.Paid, &expires)
 	renewed := serveGetJwt(t, db, user, "dispositivo-cambio", login)
-	checkPlan(t, "/GetJwt", renewed, plans.Paid, true, 200, &expires)
+	checkPlan(t, "/GetJwt", renewed, plans.Paid, true, 300, &expires)
 }
 
 // Nadie se pone el plan de pago ni una vigencia al registrarse.
@@ -310,7 +260,7 @@ func TestRegisterAlwaysStartsFree(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("código = %d; se esperaba 201 (cuerpo: %s)", rec.Code, rec.Body)
 	}
-	user, err := db.FindUser("nueva@ejemplo.mx")
+	user, err := db.FindUser(context.Background(), "nueva@ejemplo.mx")
 	if err != nil {
 		t.Fatalf("FindUser: %v", err)
 	}

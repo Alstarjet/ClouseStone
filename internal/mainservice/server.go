@@ -23,8 +23,8 @@ func NewServer() *Server {
 		panic(err)
 	}
 
-	// Índices del sync v2 (idempotente). No es fatal si falla: el servicio puede
-	// arrancar y operar; solo se degrada el rendimiento de la consulta de delta.
+	// Índices de las colecciones del respaldo (idempotente). No es fatal si falla: el servicio puede
+	// arrancar y operar. Sin el índice único, dos subidas a la vez podrían duplicar (I-08).
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := client.EnsureSyncIndexes(ctx); err != nil {
