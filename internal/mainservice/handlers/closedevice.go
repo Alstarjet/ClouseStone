@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"financial-Assistant/internal/mainservice/ctxkeys"
 	"financial-Assistant/internal/mainservice/database"
 	"log"
@@ -20,14 +21,17 @@ func CloseDevice(db *database.MongoClient) http.Handler {
 			return
 		}
 
-		user, err := db.FindUser(emailRequest)
+		ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+		defer cancel()
+
+		user, err := db.FindUser(ctx, emailRequest)
 		if err != nil {
 			log.Printf("CloseDevice: find user error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
 
-		if err = db.RemoveDeviceByUUID(user.ID, deviceID); err != nil {
+		if err = db.RemoveDeviceByUUID(ctx, user.ID, deviceID); err != nil {
 			log.Printf("CloseDevice: remove device error: %v", err)
 			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
 			return

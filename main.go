@@ -35,6 +35,8 @@ func main() {
 
 	handler := c.Handler(router)
 
+	// Plazos de todas las rutas, salvo /UploadData y /login, que tienen el suyo
+	// (internal/mainservice/timelimit.go)
 	httpServer := &http.Server{
 		Addr:         ":8080",
 		Handler:      handler,

@@ -10,26 +10,29 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (mc *MongoClient) RegisterUser(user *models.User) (interface{}, error) {
+func (mc *MongoClient) RegisterUser(ctx context.Context, user *models.User) (interface{}, error) {
 	user.ID = primitive.NewObjectID()
 	user.TypeClient = "Quartz"
 	collection := mc.client.Database(DataBase).Collection("users")
-	req, err := collection.InsertOne(context.Background(), user)
-	log.Println(req)
-	return req.InsertedID, err
+	req, err := collection.InsertOne(ctx, user)
+	// El resultado sólo existe si no hubo error (I-08: antes se leía primero y tronaba)
+	if err != nil {
+		return nil, err
+	}
+	return req.InsertedID, nil
 }
-func (mc *MongoClient) FindUser(email string) (models.User, error) {
+func (mc *MongoClient) FindUser(ctx context.Context, email string) (models.User, error) {
 	filter := bson.M{"email": email}
 	collection := mc.client.Database(DataBase).Collection("users")
 	var reques models.User
-	err := collection.FindOne(context.Background(), filter).Decode(&reques)
+	err := collection.FindOne(ctx, filter).Decode(&reques)
 	if err != nil {
 		log.Println(err)
 	}
 	return reques, err
 }
 
-func (mc *MongoClient) FindUserByID(id string) (models.User, error) {
+func (mc *MongoClient) FindUserByID(ctx context.Context, id string) (models.User, error) {
 	// Convert string ID to ObjectID
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -42,7 +45,7 @@ func (mc *MongoClient) FindUserByID(id string) (models.User, error) {
 	var user models.User
 
 	// Find the user by ID
-	err = collection.FindOne(context.Background(), filter).Decode(&user)
+	err = collection.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
 		return models.User{}, err
 	}

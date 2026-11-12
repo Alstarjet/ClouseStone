@@ -5,11 +5,8 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"fmt"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // EditableFields son los campos de un cliente que un dispositivo puede mandar
@@ -23,35 +20,48 @@ var EditableFields = map[string]bool{
 // ErrUnknownField indica que un changedfields trae un campo que no es editable.
 var ErrUnknownField = errors.New("changedfields: campo no editable")
 
-// ValidateChangedFields revisa los changedfields de todos los clientes antes de
-// guardar cualquiera, para rechazar el respaldo completo sin escribir nada.
-func ValidateChangedFields(clients []models.Client) error {
-	for _, client := range clients {
-		for _, field := range client.ChangedFields {
-			if !EditableFields[field] {
-				return fmt.Errorf("%w: %q en el cliente %q", ErrUnknownField, field, client.UUID)
-			}
+// ErrPhoneType indica un teléfono que no es texto ni número (un objeto o una
+// lista no se pueden guardar como teléfono).
+var ErrPhoneType = errors.New("phone: se esperaba texto o número")
+
+// Validate revisa lo que hace que un cliente nunca se pueda aceptar tal como
+// viene: un campo no editable en changedfields o un teléfono que no es texto ni
+// número. El respaldo rechaza sólo a ese cliente y guarda los demás (I-02).
+func Validate(client models.Client) error {
+	for _, field := range client.ChangedFields {
+		if !EditableFields[field] {
+			return fmt.Errorf("%w: %q", ErrUnknownField, field)
 		}
 	}
-	return nil
+	switch client.Phone.(type) {
+	case nil, string, float64:
+		return nil
+	default:
+		return ErrPhoneType
+	}
 }
 
-// changedFieldsUpdate arma la actualización de un cliente que ya existe con
-// sólo los campos que cambiaron en el dispositivo, más updateat (del
-// dispositivo) y backupat (del servidor). Así no pisa lo que otro dispositivo
-// cambió en otros campos. Un campo que llega vacío y se guarda con omitempty
-// (type) se quita del documento.
-func changedFieldsUpdate(client models.Client) (bson.M, error) {
-	data, err := bson.Marshal(client)
+// Upsert arma el respaldo de un cliente en un solo upsert atómico (I-03):
+//
+//   - Sin changedfields (versiones anteriores de la app): el documento completo
+//     encima del de la nube.
+//   - Con changedfields: si el cliente ya está en la nube, sólo esos campos y
+//     updateat (del dispositivo), para no pisar lo que otro dispositivo cambió en
+//     otros campos; si es nuevo, se guarda completo (lo demás va en
+//     $setOnInsert). Un campo cambiado que llega vacío y se guarda con omitempty
+//     (type) se quita del documento.
+//
+// backupat, el dueño y el uuid los pone database.UpsertBackup.
+func Upsert(client models.Client) (database.Upsert, error) {
+	full, err := database.DeviceFields(client)
 	if err != nil {
-		return nil, fmt.Errorf("changedFieldsUpdate: %w", err)
+		return database.Upsert{}, fmt.Errorf("clients.Upsert: %w", err)
 	}
-	var full bson.M
-	if err := bson.Unmarshal(data, &full); err != nil {
-		return nil, fmt.Errorf("changedFieldsUpdate: %w", err)
+	if len(client.ChangedFields) == 0 {
+		return database.Upsert{UUID: client.UUID, Set: full}, nil
 	}
 
-	set := bson.M{"updateat": client.UpdateAt, "backupat": client.BackupAt}
+	set := bson.M{"updateat": client.UpdateAt}
 	unset := bson.M{}
 	for _, field := range client.ChangedFields {
 		if value, ok := full[field]; ok {
@@ -60,64 +70,11 @@ func changedFieldsUpdate(client models.Client) (bson.M, error) {
 			unset[field] = ""
 		}
 	}
-	update := bson.M{"$set": set}
-	if len(unset) > 0 {
-		update["$unset"] = unset
-	}
-	return update, nil
-}
-
-func ClientsUploadStone(db *database.MongoClient, clients []models.Client, user models.User) ([]string, error) {
-	var OkIds []string
-	for _, client := range clients {
-		// El servidor sella la hora de llegada (createat/updateat son del cliente).
-		client.BackupAt = time.Now().UTC()
-		filter := bson.D{
-			{Key: "uuid", Value: client.UUID},
-			{Key: "usermongoid", Value: user.ID.Hex()},
-		}
-		clientCloud, err := db.FindClient(filter)
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				// Nuevo en la nube: se guarda completo aunque traiga changedfields
-				client.UserMongoID = user.ID.Hex()
-				id, err := db.AddClient(client)
-				if err != nil {
-					return nil, err
-				}
-				if oid, ok := id.(primitive.ObjectID); ok {
-					// Si lo es, podemos llamar a Hex() para obtener su representación como cadena
-					idStr := oid.Hex()
-					OkIds = append(OkIds, idStr)
-
-				}
-			} else {
-				return OkIds, err
-			}
-		} else {
-			client.ID = clientCloud.ID
-			client.UserMongoID = clientCloud.UserMongoID
-
-			if len(client.ChangedFields) > 0 {
-				err = patchClient(db, filter, client)
-			} else {
-				// Sin changedfields (versiones anteriores de la app): el documento completo
-				err = db.UpdateClient(filter, client)
-			}
-			if err != nil {
-				return OkIds, err
-			}
-
-			OkIds = append(OkIds, client.ID.Hex())
+	onInsert := bson.M{}
+	for field, value := range full {
+		if _, changed := set[field]; !changed {
+			onInsert[field] = value
 		}
 	}
-	return OkIds, nil
-}
-
-func patchClient(db *database.MongoClient, filter bson.D, client models.Client) error {
-	update, err := changedFieldsUpdate(client)
-	if err != nil {
-		return err
-	}
-	return db.PatchClient(filter, update)
+	return database.Upsert{UUID: client.UUID, Set: set, SetOnInsert: onInsert, Unset: unset}, nil
 }

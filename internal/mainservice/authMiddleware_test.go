@@ -138,7 +138,7 @@ func TestUploadDataRouteRequiresAuth(t *testing.T) {
 		wantCode int
 	}{
 		{"POST sin token", http.MethodPost, "", `{"clients":[]}`, http.StatusUnauthorized},
-		{"POST con token y cuerpo inválido", http.MethodPost, "Bearer " + token, `{"clients":[{"age":"40"}]}`, http.StatusBadRequest},
+		{"POST con token y cuerpo inválido", http.MethodPost, "Bearer " + token, `{"clients":[`, http.StatusBadRequest},
 		{"GET no está permitido", http.MethodGet, "Bearer " + token, "", http.StatusMethodNotAllowed},
 	}
 	for _, tt := range tests {
@@ -153,5 +153,18 @@ func TestUploadDataRouteRequiresAuth(t *testing.T) {
 				t.Errorf("código = %d; se esperaba %d (cuerpo: %s)", rec.Code, tt.wantCode, rec.Body)
 			}
 		})
+	}
+}
+
+// I-14: /sync (sincronización v2) nunca lo usó ningún cliente y se quitó: era otra
+// puerta de escritura que no respetaba changedfields.
+func TestRetiredRoutesAreGone(t *testing.T) {
+	router := NewRouter(&Server{})
+	for _, path := range []string{"/sync"} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}")))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("POST %s: código = %d; se esperaba 404", path, rec.Code)
+		}
 	}
 }

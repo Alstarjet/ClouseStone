@@ -13,6 +13,7 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,21 @@ import (
 const EnvURI = "CLOUSESTONE_TEST_MONGO_URI"
 
 const dbPrefix = "clousestone_pruebas_"
+
+// raw guarda la base directa de cada conexión que abrió Connect.
+var raw sync.Map // *database.MongoClient → *mongo.Database
+
+// Raw es la base de la prueba sin pasar por database.MongoClient, para preparar lo
+// que la app nunca escribe por sí misma (p. ej. el plan de una cuenta, que se
+// cambia a mano en la base). Sólo sirve con una conexión que abrió Connect.
+func Raw(t *testing.T, db *database.MongoClient) *mongo.Database {
+	t.Helper()
+	value, ok := raw.Load(db)
+	if !ok {
+		t.Fatalf("mongotest: esa conexión no la abrió Connect")
+	}
+	return value.(*mongo.Database)
+}
 
 // Connect devuelve un database.MongoClient sobre una base vacía y exclusiva de
 // la prueba, o salta la prueba si no hay servidor de pruebas configurado.
@@ -58,8 +74,10 @@ func Connect(t *testing.T) *database.MongoClient {
 	if err != nil {
 		t.Fatalf("mongotest: NewMongoClient: %v", err)
 	}
+	raw.Store(db, admin.Database(name))
 
 	t.Cleanup(func() {
+		raw.Delete(db)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := db.Disconnect(); err != nil {
