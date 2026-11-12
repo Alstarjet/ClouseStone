@@ -24,6 +24,10 @@ type User struct {
 	// (typeclient) al recibir el pago; vacía = sin vencimiento. Al vencer, el plan
 	// también se cambia a mano. json:"-" impide que el registro la escriba.
 	PlanExpiresAt *time.Time `bson:"planexpiresat,omitempty" json:"-"`
+	// Tope de clientes propio de la cuenta, para ampliarle el plan de pago sin
+	// cambiar el código (ver AccountLimit). Se pone a mano en la base; json:"-"
+	// impide que el registro lo escriba.
+	ClientLimit AccountLimit `bson:"clientlimit,omitempty" json:"-"`
 }
 type UserDevices struct {
 	ID          primitive.ObjectID `bson:"_id"`
