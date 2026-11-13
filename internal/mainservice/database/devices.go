@@ -70,10 +70,20 @@ func (mc *MongoClient) UpdateDeviceRefreshToken(ctx context.Context, userID prim
 	return result.MatchedCount > 0, nil
 }
 
+// MaxDevicesPerAccount es el tope de dispositivos con sesión de una cuenta. Antes
+// cada login con un dispositivo nuevo agregaba una entrada para siempre, vencidas
+// incluidas, y el documento podía crecer hasta el límite de Mongo (S-05).
+const MaxDevicesPerAccount = 20
+
 // AddNewDevice agrega el dispositivo al usuario sólo si todavía no lo tiene, en
 // una sola escritura: dos logins a la vez del mismo dispositivo no lo repiten.
 // pushed es false si ya estaba (o si el usuario no tiene documento de
 // dispositivos).
+//
+// En la misma escritura deja sólo los MaxDevicesPerAccount dispositivos cuya
+// sesión vence más tarde: salen primero los vencidos y después los que llevan más
+// tiempo sin entrar ni renovar. El que acaba de entrar es el que vence más tarde,
+// así que nunca sale.
 func (mc *MongoClient) AddNewDevice(ctx context.Context, userID primitive.ObjectID, newDevice models.Device) (pushed bool, err error) {
 	filter := bson.D{
 		{Key: "_id", Value: userID},
@@ -81,7 +91,11 @@ func (mc *MongoClient) AddNewDevice(ctx context.Context, userID primitive.Object
 	}
 	update := bson.D{
 		{Key: "$push", Value: bson.M{
-			"devices": newDevice,
+			"devices": bson.M{
+				"$each":  bson.A{newDevice},
+				"$sort":  bson.M{"refreshtoken.dateend": 1},
+				"$slice": -MaxDevicesPerAccount,
+			},
 		}},
 	}
 

@@ -33,6 +33,12 @@ func Register(db *database.MongoClient) http.Handler {
 			return
 		}
 
+		// Topes de tamaño de cada campo (limits.go): nada de esto llega a la base
+		if msg := registerLimits(newData); msg != "" {
+			writeJSONError(w, http.StatusBadRequest, msg)
+			return
+		}
+
 		// Validate email format
 		if _, err := mail.ParseAddress(newData.Email); err != nil {
 			http.Error(w, `{"error":"formato de email inválido"}`, http.StatusBadRequest)
