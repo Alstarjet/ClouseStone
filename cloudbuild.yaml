@@ -13,6 +13,14 @@
 # Costo: la política de limpieza del repo de Artifact Registry (conservar solo
 # las últimas versiones) evita acumular imágenes. Cloud Run guarda su propia
 # copia de la imagen desplegada, por lo que borrar imágenes viejas es seguro.
+#
+# Tope de instancias (--max-instances=10, nov-2026): con el de fábrica (100),
+# alguien que saturara el servicio podía generar unos US$200 al día sólo de CPU
+# y memoria; con 10 son unos US$22, y 10 alcanzan de sobra (cada instancia
+# atiende 80 peticiones a la vez). Ojo: esto NO limita el cobro por petición
+# (US$0.40 por millón) ni el de los logs; para eso hace falta un freno delante
+# del servicio. Este valor manda: si se cambia en la consola, el siguiente
+# despliegue lo regresa a 10.
 
 steps:
   - id: build
@@ -41,6 +49,7 @@ steps:
       - --image=${_IMAGE}:${SHORT_SHA}
       - --region=${_REGION}
       - --platform=managed
+      - --max-instances=10
       - --quiet
 
 substitutions:
