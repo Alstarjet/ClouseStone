@@ -25,6 +25,7 @@ const maxUploadBody = 5 << 20 // 5 MB
 type backupStore interface {
 	userFinder
 	UpsertBackup(ctx context.Context, collection, usermongoid string, backupAt time.Time, ups []database.Upsert) error
+	CountBackup(ctx context.Context, collection, usermongoid string) (int64, error)
 }
 
 // UploadDataSchedule respalda lo que manda el dispositivo: clientes, cargos,
@@ -37,6 +38,8 @@ type backupStore interface {
 //     (usermongoid, uuid): repetir la subida no duplica nada (I-03, I-08).
 //   - Un error de Mongo es 500: el dispositivo reintenta el lote completo.
 //   - Ya no anota nada en la cola de los demás dispositivos (I-07).
+//   - Si la cuenta ya llegó al tope de documentos de una colección que trae el
+//     lote (database.MaxBackupRecords), responde 413 sin guardar nada (S-05).
 //
 // El contexto trae el tiempo límite propio de la ruta (route.go).
 func UploadDataSchedule(db *database.MongoClient) http.Handler {
@@ -83,6 +86,28 @@ func uploadData(store backupStore) http.Handler {
 		// La versión gratis no respalda en línea: 403 antes de escribir nada
 		if !allowsCloudBackup(w, user) {
 			return
+		}
+
+		// Red de seguridad: una cuenta que ya llegó al tope en una colección del lote
+		// no guarda nada (ni una parte), y queda en el log para revisarla
+		for _, part := range parts {
+			if len(part.upserts) == 0 {
+				continue
+			}
+			count, err := store.CountBackup(ctx, part.collection, user.ID.Hex())
+			if err != nil {
+				log.Printf("UploadDataSchedule: %v", err)
+				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+				return
+			}
+			if count >= database.MaxBackupRecords {
+				log.Printf("UploadDataSchedule: usuario %s: llegó al tope de %d documentos en %q; no se guardó el lote",
+					user.ID.Hex(), database.MaxBackupRecords, part.collection)
+				writeJSON(w, http.StatusRequestEntityTooLarge, map[string]any{
+					"error": "account_limit", "store": part.collection, "limit": database.MaxBackupRecords,
+				})
+				return
+			}
 		}
 
 		// Una sola hora del servidor para todo el lote (backupat, base de /GetDataSince)

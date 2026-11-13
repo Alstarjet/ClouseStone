@@ -19,7 +19,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const maxBodySize = 1 << 20 // 1MB
+// maxBodySize es el tope del cuerpo de /register y /login: son unos cuantos campos
+// cortos (limits.go). Era de 1 MB (S-02).
+const maxBodySize = 16 << 10 // 16 KB
 
 // Login abre la sesión en el dispositivo que manda el cliente. No hay límite de dispositivos en ningún plan: cada uno
 // queda registrado con su propio refresh token y sólo se cierra con /CloseDevice desde ese mismo dispositivo.
@@ -70,9 +72,23 @@ func authenticateUser(ctx context.Context, db userFinder, w http.ResponseWriter,
 		return models.User{}, data, err
 	}
 
-	if len(data.Device) < 3 {
+	if len(data.Device) < 3 || len(data.Device) > maxDeviceLength {
 		http.Error(w, `{"error":"invalid device identifier"}`, http.StatusBadRequest)
 		return models.User{}, data, errInvalidInput
+	}
+
+	// Freno de intentos (loginlimit.go): pasado el tope no se toca la base ni bcrypt
+	ip := rateLimitIP(r)
+	if wait := loginLimits.blocked(ip, data.Email); wait > 0 {
+		tooManyAttempts(w, wait)
+		return models.User{}, data, errTooManyAttempts
+	}
+	// Un correo o una contraseña que no caben en una cuenta real (limits.go) no se
+	// buscan; el fallo cuenta sólo para la IP, para no guardar el correo gigante
+	if len(data.Email) > maxEmailLength || len(data.Password) > maxPasswordBytes {
+		loginLimits.failed(ip, "")
+		http.Error(w, `{"error":"usuario o contraseña incorrectos"}`, http.StatusUnauthorized)
+		return models.User{}, data, errInvalidCredentials
 	}
 
 	user, err := db.FindUser(ctx, data.Email)
@@ -84,15 +100,20 @@ func authenticateUser(ctx context.Context, db userFinder, w http.ResponseWriter,
 		return models.User{}, data, err
 	}
 	if err != nil || user.Email == "" {
+		// Que tarde lo mismo que con un correo que sí existe
+		burnPasswordCheck(data.Password)
+		loginLimits.failed(ip, data.Email)
 		http.Error(w, `{"error":"usuario o contraseña incorrectos"}`, http.StatusUnauthorized)
 		return models.User{}, data, errInvalidCredentials
 	}
 
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(data.Password)); err != nil {
+		loginLimits.failed(ip, data.Email)
 		http.Error(w, `{"error":"usuario o contraseña incorrectos"}`, http.StatusUnauthorized)
 		return models.User{}, data, err
 	}
 
+	loginLimits.succeeded(data.Email)
 	return user, data, nil
 }
 
@@ -181,6 +202,7 @@ func consultDataForNewDevice(ctx context.Context, db accountReader, user models.
 var (
 	errInvalidInput       = errSentinel("invalid input")
 	errInvalidCredentials = errSentinel("invalid credentials")
+	errTooManyAttempts    = errSentinel("too many attempts")
 )
 
 type errSentinel string

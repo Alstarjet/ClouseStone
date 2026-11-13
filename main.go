@@ -12,7 +12,6 @@ import (
 	"financial-Assistant/internal/mainservice"
 
 	"github.com/joho/godotenv"
-	"github.com/rs/cors"
 )
 
 func main() {
@@ -26,14 +25,8 @@ func main() {
 	server := mainservice.NewServer()
 	router := mainservice.NewRouter(server)
 
-	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{os.Getenv("URL_FRONT")},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Refresh-Token"},
-		AllowCredentials: true,
-	})
-
-	handler := c.Handler(router)
+	// CORS y compresión de las respuestas (handler.go)
+	handler := newHandler(router, os.Getenv("URL_FRONT"))
 
 	// Plazos de todas las rutas, salvo /UploadData y /login, que tienen el suyo
 	// (internal/mainservice/timelimit.go)

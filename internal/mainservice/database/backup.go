@@ -43,6 +43,30 @@ var serverFields = map[string]bool{"_id": true, "usermongoid": true, "uuid": tru
 // backupCollections son las colecciones que escribe el respaldo.
 var backupCollections = map[string]bool{clients: true, charges: true, orders: true, payments: true}
 
+// MaxBackupRecords es el tope de documentos de una cuenta en cada colección del
+// respaldo. Es una red de seguridad, no una regla del plan (el tope de clientes
+// lo cuida la app): está muy por encima del uso real (la cuenta más grande tenía
+// menos de 5,000 pagos en nov-2026) y evita que una app con un error, o alguien
+// con mala intención, llene la base de todos (S-05).
+const MaxBackupRecords = 25000
+
+// CountBackup cuenta los documentos del usuario en una colección del respaldo.
+// Usa el índice (usermongoid, uuid).
+func (mc *MongoClient) CountBackup(ctx context.Context, collection, usermongoid string) (int64, error) {
+	if !backupCollections[collection] {
+		return 0, fmt.Errorf("CountBackup: %q no es una colección del respaldo", collection)
+	}
+	if usermongoid == "" {
+		return 0, errors.New("CountBackup: falta el usuario")
+	}
+	filter := bson.D{{Key: "usermongoid", Value: usermongoid}}
+	n, err := mc.client.Database(DataBase).Collection(collection).CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("CountBackup: %q: %w", collection, err)
+	}
+	return n, nil
+}
+
 // DeviceFields convierte un documento del respaldo (models.Client, Charge o
 // Payment) en sus campos tal como se guardan en Mongo, sin los que pone el
 // servidor (serverFields).
