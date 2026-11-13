@@ -33,6 +33,12 @@ func Register(db *database.MongoClient) http.Handler {
 			return
 		}
 
+		// Topes de tamaño de cada campo (limits.go): nada de esto llega a la base
+		if msg := registerLimits(newData); msg != "" {
+			writeJSONError(w, http.StatusBadRequest, msg)
+			return
+		}
+
 		// Validate email format
 		if _, err := mail.ParseAddress(newData.Email); err != nil {
 			http.Error(w, `{"error":"formato de email inválido"}`, http.StatusBadRequest)
@@ -48,6 +54,19 @@ func Register(db *database.MongoClient) http.Handler {
 		// Validate required fields
 		if strings.TrimSpace(newData.Name) == "" {
 			http.Error(w, `{"error":"el nombre es requerido"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Que no sea un bot (humancheck.go): la trampa del formulario y, si el servicio
+		// tiene la llave de Turnstile, la prueba de Cloudflare. Va después de las
+		// validaciones baratas para no gastar la prueba (sirve una vez) en un error de captura
+		if err := humanCheck(r.Context(), req, clientIP(r)); err != nil {
+			if errors.Is(err, errHumanCheckUnavailable) {
+				log.Printf("Register: %v", err)
+				http.Error(w, `{"error":"no pudimos revisar tu registro en este momento, inténtalo en un minuto"}`, http.StatusServiceUnavailable)
+				return
+			}
+			http.Error(w, `{"error":"no pudimos confirmar que no eres un robot, inténtalo de nuevo"}`, http.StatusBadRequest)
 			return
 		}
 

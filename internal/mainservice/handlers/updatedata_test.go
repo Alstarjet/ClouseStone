@@ -82,6 +82,18 @@ type fakeStore struct {
 	writes    map[string][]database.Upsert // colección → documentos
 	owners    map[string]bool              // usermongoid de cada escritura
 	backupAts map[time.Time]bool
+
+	counts   map[string]int64 // colección → documentos que la cuenta ya tiene
+	countErr error
+	counted  []string // colecciones que se contaron, en orden
+}
+
+func (f *fakeStore) CountBackup(_ context.Context, collection, usermongoid string) (int64, error) {
+	f.counted = append(f.counted, collection)
+	if f.countErr != nil {
+		return 0, f.countErr
+	}
+	return f.counts[collection], nil
 }
 
 func (f *fakeStore) FindUser(_ context.Context, email string) (models.User, error) {
