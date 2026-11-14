@@ -28,11 +28,14 @@ type BackupResponse struct {
 // RejectedRecord es un registro del respaldo que el servidor nunca va a poder
 // aceptar tal como viene. Store es la colección: "clients", "charges", "orders"
 // o "payments"; UUID va vacío si el registro no traía uno; Reason lo explica en
-// pocas palabras (es para leerse, no para que la app lo interprete).
+// pocas palabras (es para leerse, no para que la app lo interprete). Code es para
+// la app: "client_limit" si es un cliente nuevo que ya no cabe en el tope de la
+// cuenta (puede respaldarse después, si se le amplía); vacío en los demás.
 type RejectedRecord struct {
 	Store  string `json:"store"`
 	UUID   string `json:"uuid"`
 	Reason string `json:"reason"`
+	Code   string `json:"code,omitempty"`
 }
 
 // BackupRejectedResponse es el cuerpo del 422 de /UploadData: todo lo demás del

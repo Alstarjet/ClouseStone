@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Respaldo de /UploadData: todos los documentos de una colección se escriben en
@@ -63,6 +64,51 @@ func (mc *MongoClient) CountBackup(ctx context.Context, collection, usermongoid 
 	n, err := mc.client.Database(DataBase).Collection(collection).CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, fmt.Errorf("CountBackup: %q: %w", collection, err)
+	}
+	return n, nil
+}
+
+// ExistingUUIDs dice cuáles de uuids ya tiene el usuario en la colección. Usa el
+// índice (usermongoid, uuid) y sólo trae el uuid de cada documento.
+func (mc *MongoClient) ExistingUUIDs(ctx context.Context, collection, usermongoid string, uuids []string) (map[string]bool, error) {
+	if !backupCollections[collection] {
+		return nil, fmt.Errorf("ExistingUUIDs: %q no es una colección del respaldo", collection)
+	}
+	if usermongoid == "" {
+		return nil, errors.New("ExistingUUIDs: falta el usuario")
+	}
+	found := map[string]bool{}
+	if len(uuids) == 0 {
+		return found, nil
+	}
+	filter := bson.D{{Key: "usermongoid", Value: usermongoid}, {Key: "uuid", Value: bson.D{{Key: "$in", Value: uuids}}}}
+	cursor, err := mc.client.Database(DataBase).Collection(collection).Find(ctx, filter,
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 0}, {Key: "uuid", Value: 1}}))
+	if err != nil {
+		return nil, fmt.Errorf("ExistingUUIDs: %q: %w", collection, err)
+	}
+	var docs []struct {
+		UUID string `bson:"uuid"`
+	}
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, fmt.Errorf("ExistingUUIDs: %q: %w", collection, err)
+	}
+	for _, doc := range docs {
+		found[doc.UUID] = true
+	}
+	return found, nil
+}
+
+// CountActiveClients cuenta los clientes activos del usuario en la nube (status
+// "active"; la lista negra cuenta, los borrados no), igual que el tope de la app.
+func (mc *MongoClient) CountActiveClients(ctx context.Context, usermongoid string) (int64, error) {
+	if usermongoid == "" {
+		return 0, errors.New("CountActiveClients: falta el usuario")
+	}
+	filter := bson.D{{Key: "usermongoid", Value: usermongoid}, {Key: "status", Value: "active"}}
+	n, err := mc.client.Database(DataBase).Collection(clients).CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("CountActiveClients: %w", err)
 	}
 	return n, nil
 }

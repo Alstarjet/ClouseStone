@@ -86,6 +86,35 @@ type fakeStore struct {
 	counts   map[string]int64 // colección → documentos que la cuenta ya tiene
 	countErr error
 	counted  []string // colecciones que se contaron, en orden
+
+	// Tope de clientes (clientlimit.go)
+	existingClients map[string]bool // uuids de clientes que ya están en la nube
+	activeClients   int64           // clientes activos que la cuenta ya tiene en la nube
+	limitErr        error
+	existingAsked   [][]string // uuids que se preguntaron en cada ExistingUUIDs
+	activeCounted   int        // veces que se contaron los clientes activos
+}
+
+func (f *fakeStore) ExistingUUIDs(_ context.Context, collection, usermongoid string, uuids []string) (map[string]bool, error) {
+	f.existingAsked = append(f.existingAsked, uuids)
+	if f.limitErr != nil {
+		return nil, f.limitErr
+	}
+	found := map[string]bool{}
+	for _, uuid := range uuids {
+		if f.existingClients[uuid] {
+			found[uuid] = true
+		}
+	}
+	return found, nil
+}
+
+func (f *fakeStore) CountActiveClients(_ context.Context, usermongoid string) (int64, error) {
+	f.activeCounted++
+	if f.limitErr != nil {
+		return 0, f.limitErr
+	}
+	return f.activeClients, nil
 }
 
 func (f *fakeStore) CountBackup(_ context.Context, collection, usermongoid string) (int64, error) {
