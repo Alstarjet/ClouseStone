@@ -6,6 +6,7 @@ import (
 	"financial-Assistant/internal/mainservice/database/mongotest"
 	"fmt"
 	"testing"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -21,7 +22,13 @@ func TestLoginKeepsTheNewestDevices(t *testing.T) {
 
 	total := database.MaxDevicesPerAccount + 2
 	for i := 1; i <= total; i++ {
-		serveLogin(t, db, user.Email, fmt.Sprintf("dispositivo-%02d", i))
+		device := fmt.Sprintf("dispositivo-%02d", i)
+		serveLogin(t, db, user.Email, device)
+		// Con el tope de 5 sesiones vigentes (devicelimit.go), para llegar a más de 20
+		// guardados las anteriores tienen que estar vencidas; la más vieja vence primero
+		if i < total {
+			expireSession(t, db, user.ID, device, time.Now().Add(-time.Duration(total-i)*time.Hour))
+		}
 	}
 
 	stored, _ := devicesDoc(t, db, user.ID)["devices"].(bson.A)

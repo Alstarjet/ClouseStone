@@ -24,6 +24,7 @@ const maxUploadBody = 5 << 20 // 5 MB
 // *database.MongoClient; las pruebas usan uno en memoria.
 type backupStore interface {
 	userFinder
+	clientLimitStore
 	UpsertBackup(ctx context.Context, collection, usermongoid string, backupAt time.Time, ups []database.Upsert) error
 	CountBackup(ctx context.Context, collection, usermongoid string) (int64, error)
 }
@@ -40,6 +41,9 @@ type backupStore interface {
 //   - Ya no anota nada en la cola de los demás dispositivos (I-07).
 //   - Si la cuenta ya llegó al tope de documentos de una colección que trae el
 //     lote (database.MaxBackupRecords), responde 413 sin guardar nada (S-05).
+//   - Si el lote trae clientes nuevos que ya no caben en el tope de clientes de la
+//     cuenta, ésos se rechazan con el código client_limit y lo demás se guarda
+//     (clientlimit.go). Sin clientes en el lote no se revisa nada.
 //
 // El contexto trae el tiempo límite propio de la ruta (route.go).
 func UploadDataSchedule(db *database.MongoClient) http.Handler {
@@ -108,6 +112,25 @@ func uploadData(store backupStore) http.Handler {
 				})
 				return
 			}
+		}
+
+		// Tope de clientes de la cuenta: sólo si el lote trae clientes (clientlimit.go)
+		for i := range parts {
+			if parts[i].collection != "clients" {
+				continue
+			}
+			kept, overLimit, err := applyClientLimit(ctx, store, user, parts[i].upserts)
+			if err != nil {
+				log.Printf("UploadDataSchedule: tope de clientes: %v", err)
+				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+				return
+			}
+			if len(overLimit) > 0 {
+				log.Printf("UploadDataSchedule: usuario %s: %d clientes nuevos no caben en su tope; se guardó lo demás",
+					user.ID.Hex(), len(overLimit))
+			}
+			parts[i].upserts = kept
+			rejected = append(rejected, overLimit...)
 		}
 
 		// Una sola hora del servidor para todo el lote (backupat, base de /GetDataSince)

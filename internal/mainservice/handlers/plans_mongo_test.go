@@ -101,12 +101,13 @@ func TestUploadDataWithoutCloudBackupIsRejected(t *testing.T) {
 	}
 }
 
-// El tope de clientes lo cuida el frontend y la vigencia se cambia a mano: el
-// backend guarda todo lo que manda una cuenta de pago.
+// La vigencia se cambia a mano: el backend guarda lo que manda una cuenta de pago
+// aunque ya haya vencido. Del tope de clientes sólo se rechazan los clientes nuevos
+// que ya no caben (clientlimit.go); lo demás se guarda.
 func TestUploadDataPaidPlanSavesEverything(t *testing.T) {
 	db := mongotest.Connect(t)
 
-	t.Run("aunque pase de su tope de clientes", func(t *testing.T) {
+	t.Run("pasado el tope de clientes sólo se rechaza el cliente nuevo que no cabe", func(t *testing.T) {
 		const email = "tope@ejemplo.mx"
 		user := registerPaidUser(t, db, email)
 		limit := plans.For(plans.Paid).ClientLimit
@@ -121,11 +122,17 @@ func TestUploadDataPaidPlanSavesEverything(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal: %v", err)
 		}
-		if rec := serveUpload(t, db, email, testDeviceID, string(body)); rec.Code != http.StatusOK {
-			t.Fatalf("código = %d; se esperaba 200 (cuerpo: %s)", rec.Code, rec.Body)
+		rec := serveUpload(t, db, email, testDeviceID, string(body))
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("código = %d; se esperaba 422 (cuerpo: %s)", rec.Code, rec.Body)
 		}
-		if got := len(storedDocs(t, db, user.ID)["clients"]); got != limit+1 {
-			t.Errorf("clientes guardados = %d; se esperaban %d", got, limit+1)
+		if got := len(storedDocs(t, db, user.ID)["clients"]); got != limit {
+			t.Errorf("clientes guardados = %d; se esperaban %d", got, limit)
+		}
+		// Todos se registraron a la misma hora: queda fuera el último del lote
+		rejected := rejectedOf(t, rec.Body.Bytes())
+		if len(rejected) != 1 || rejected[0].UUID != fmt.Sprintf("cli-%03d", limit) || rejected[0].Code != "client_limit" {
+			t.Errorf("rechazados = %+v; se esperaba sólo cli-%03d con client_limit", rejected, limit)
 		}
 	})
 

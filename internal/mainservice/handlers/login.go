@@ -7,12 +7,14 @@ import (
 	"financial-Assistant/internal/mainservice/database"
 	"financial-Assistant/internal/mainservice/models"
 	"financial-Assistant/internal/mainservice/moduls/devices"
+	"financial-Assistant/internal/mainservice/moduls/plans"
 	"financial-Assistant/internal/mainservice/utilities"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -23,8 +25,10 @@ import (
 // cortos (limits.go). Era de 1 MB (S-02).
 const maxBodySize = 16 << 10 // 16 KB
 
-// Login abre la sesión en el dispositivo que manda el cliente. No hay límite de dispositivos en ningún plan: cada uno
-// queda registrado con su propio refresh token y sólo se cierra con /CloseDevice desde ese mismo dispositivo.
+// Login abre la sesión en el dispositivo que manda el cliente. Cada dispositivo queda registrado con su propio
+// refresh token. Una cuenta puede tener a lo más plans.DeviceLimit sesiones vigentes (devicelimit.go): un dispositivo
+// nuevo que ya no cabe recibe 403 device_limit, sin leer los datos ni registrar nada. Una sesión se cierra con
+// /CloseDevice desde ese mismo dispositivo, o quitando su entrada de la base (consola gluzie-admin).
 //
 // El contexto trae el tiempo límite propio de la ruta (route.go): la respuesta lleva todos los datos de la cuenta.
 func Login(db *database.MongoClient) http.Handler {
@@ -35,6 +39,18 @@ func Login(db *database.MongoClient) http.Handler {
 		user, data, err := authenticateUser(ctx, db, w, r)
 		if err != nil {
 			return // response already written by authenticateUser
+		}
+
+		full, err := deviceLimitReached(ctx, db, user, data.Device, time.Now())
+		if err != nil {
+			log.Printf("Login: tope de dispositivos: %v", err)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+			return
+		}
+		if full {
+			log.Printf("Login: usuario %s: ya tiene %d sesiones vigentes; no entra un dispositivo nuevo", user.ID.Hex(), plans.DeviceLimit)
+			writeDeviceLimit(w)
+			return
 		}
 
 		issueTokensAndRespond(ctx, db, w, user, data.Device, true)

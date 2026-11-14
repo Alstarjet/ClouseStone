@@ -31,6 +31,12 @@ var rules = map[string]Rules{
 	Paid: {CloudBackup: true, ClientLimit: 300},
 }
 
+// DeviceLimit es el máximo de dispositivos con sesión vigente de una cuenta, en los
+// dos planes. Un dispositivo nuevo no entra si ya hay tantos; una sesión vencida no
+// cuenta, así que un teléfono que se dejó de usar se libera solo a los 30 días. Si
+// algún día cambia por plan, pasa a Rules.
+const DeviceLimit = 5
+
 // For regresa las reglas del plan. Un plan desconocido o vacío se trata como la
 // versión gratis, para no abrir ningún hueco, y se anota en el log.
 func For(typeclient string) Rules {
