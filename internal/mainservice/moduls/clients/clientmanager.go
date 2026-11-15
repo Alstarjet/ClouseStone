@@ -49,7 +49,10 @@ func Validate(client models.Client) error {
 //     updateat (del dispositivo), para no pisar lo que otro dispositivo cambió en
 //     otros campos; si es nuevo, se guarda completo (lo demás va en
 //     $setOnInsert). Un campo cambiado que llega vacío y se guarda con omitempty
-//     (type) se quita del documento.
+//     (type) se quita del documento. updateat va con $max: nunca regresa a una
+//     hora anterior aunque llegue después la edición de un dispositivo que estuvo
+//     sin internet (H-08 de las pruebas del 14-nov-2026). Si dos dispositivos
+//     cambiaron el mismo campo, queda el que se respaldó al último.
 //
 // backupat, el dueño y el uuid los pone database.UpsertBackup.
 func Upsert(client models.Client) (database.Upsert, error) {
@@ -61,7 +64,8 @@ func Upsert(client models.Client) (database.Upsert, error) {
 		return database.Upsert{UUID: client.UUID, Set: full}, nil
 	}
 
-	set := bson.M{"updateat": client.UpdateAt}
+	set := bson.M{}
+	max := bson.M{"updateat": client.UpdateAt}
 	unset := bson.M{}
 	for _, field := range client.ChangedFields {
 		if value, ok := full[field]; ok {
@@ -72,9 +76,9 @@ func Upsert(client models.Client) (database.Upsert, error) {
 	}
 	onInsert := bson.M{}
 	for field, value := range full {
-		if _, changed := set[field]; !changed {
+		if _, changed := set[field]; !changed && field != "updateat" {
 			onInsert[field] = value
 		}
 	}
-	return database.Upsert{UUID: client.UUID, Set: set, SetOnInsert: onInsert, Unset: unset}, nil
+	return database.Upsert{UUID: client.UUID, Set: set, SetOnInsert: onInsert, Unset: unset, Max: max}, nil
 }

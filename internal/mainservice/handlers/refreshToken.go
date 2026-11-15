@@ -110,10 +110,12 @@ func RefreshToken(db *database.MongoClient) http.Handler {
 			return
 		}
 
+		// El mismo nombre que en el login (nombre y apellido): antes el saludo
+		// cambiaba de «Ana López» a «Ana» al renovar el token
 		response := withPlan(models.JWTresponce{
 			Toke:         accessToken,
 			Expires:      expiresJWT,
-			UserName:     user.Name,
+			UserName:     user.Name + " " + user.LastName,
 			RefreshToken: rotatedRefreshToken,
 		}, user)
 
