@@ -25,14 +25,18 @@ import (
 //     changedfields se guarda completo la primera vez y después sólo se tocan
 //     los campos que cambiaron).
 //   - Unset quita campos.
+//   - Max sólo escribe un campo si el valor que llega es mayor que el guardado
+//     (o si no hay uno): una fecha que nunca va hacia atrás. En un documento
+//     nuevo se escribe tal cual.
 //
-// Un campo va en uno solo de los tres; si se repite, gana Set y luego
-// SetOnInsert (Mongo rechazaría la escritura entera).
+// Un campo va en uno solo de los cuatro; si se repite, gana Set, luego Max y
+// luego SetOnInsert (Mongo rechazaría la escritura entera).
 type Upsert struct {
 	UUID        string
 	Set         bson.M
 	SetOnInsert bson.M
 	Unset       bson.M
+	Max         bson.M
 }
 
 // serverFields son los campos que el respaldo nunca toma del dispositivo: _id lo
@@ -179,12 +183,17 @@ func (mc *MongoClient) UpsertBackup(ctx context.Context, collection, usermongoid
 func (up Upsert) Update(backupAt time.Time) bson.M {
 	set := bson.M{"backupat": backupAt}
 	copyFields(set, up.Set)
+	max := bson.M{}
+	copyFields(max, up.Max, set)
 	onInsert := bson.M{}
-	copyFields(onInsert, up.SetOnInsert, set)
+	copyFields(onInsert, up.SetOnInsert, set, max)
 	unset := bson.M{}
-	copyFields(unset, up.Unset, set, onInsert)
+	copyFields(unset, up.Unset, set, max, onInsert)
 
 	update := bson.M{"$set": set}
+	if len(max) > 0 {
+		update["$max"] = max
+	}
 	if len(onInsert) > 0 {
 		update["$setOnInsert"] = onInsert
 	}

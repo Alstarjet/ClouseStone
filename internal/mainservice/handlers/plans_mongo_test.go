@@ -281,6 +281,19 @@ func TestGetJwtBringsAPlanChange(t *testing.T) {
 	checkPlan(t, "/GetJwt", renewed, plans.Paid, true, 300, &expires)
 }
 
+// El saludo no cambia al renovar: /GetJwt manda el mismo nombre que el login
+// (nombre y apellido; antes, sólo el nombre).
+func TestGetJwtKeepsTheFullName(t *testing.T) {
+	db := mongotest.Connect(t)
+	const email = "nombre@ejemplo.mx"
+	user := registerWithPassword(t, db, email)
+	login := serveLogin(t, db, email, "dispositivo-nombre")
+	renewed := serveGetJwt(t, db, user, "dispositivo-nombre", login)
+	if login["username"] != "Ana López" || renewed["username"] != login["username"] {
+		t.Errorf("username: login = %v, /GetJwt = %v; se esperaba «Ana López» en los dos", login["username"], renewed["username"])
+	}
+}
+
 // Ampliarle el tope a una cuenta de pago (a mano en la base) le llega a la app en la
 // siguiente renovación del token, sin volver a entrar; quitárselo la regresa al del plan.
 func TestGetJwtBringsAnAccountLimitChange(t *testing.T) {
