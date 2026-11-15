@@ -58,19 +58,24 @@ func TestUpsert(t *testing.T) {
 		client models.Client
 		want   bson.M
 	}{
-		// Si ya existe, sólo cambia el apellido; si es nuevo, se guarda completo
+		// Si ya existe, sólo cambia el apellido; si es nuevo, se guarda completo.
+		// updateat va con $max: nunca regresa a una hora anterior (H-08)
 		{"sólo el apellido", deviceCopy("lastname"),
-			bson.M{"$set": bson.M{"lastname": "López Ruiz", "updateat": updateat, "backupat": backupat},
+			bson.M{"$set": bson.M{"lastname": "López Ruiz", "backupat": backupat},
+				"$max":         bson.M{"updateat": updateat},
 				"$setOnInsert": fullWithout("lastname", "updateat")}},
 		{"mandar a lista negra", blacklisted,
-			bson.M{"$set": bson.M{"type": "blacklist", "updateat": updateat, "backupat": backupat},
+			bson.M{"$set": bson.M{"type": "blacklist", "backupat": backupat},
+				"$max":         bson.M{"updateat": updateat},
 				"$setOnInsert": fullWithout("updateat")}},
 		{"sacar de la lista negra (type vacío se quita)", deviceCopy("type"),
-			bson.M{"$set": bson.M{"updateat": updateat, "backupat": backupat},
+			bson.M{"$set": bson.M{"backupat": backupat},
+				"$max":         bson.M{"updateat": updateat},
 				"$setOnInsert": fullWithout("updateat"), "$unset": bson.M{"type": ""}}},
 		{"varios campos", deviceCopy("name", "age", "phone", "status"),
 			bson.M{"$set": bson.M{"name": "Ana", "age": int32(40), "phone": "2221234567", "status": "active",
-				"updateat": updateat, "backupat": backupat},
+				"backupat": backupat},
+				"$max":         bson.M{"updateat": updateat},
 				"$setOnInsert": fullWithout("name", "age", "phone", "status", "updateat")}},
 		// Versiones anteriores de la app: el documento completo encima (y un type
 		// vacío no se escribe, así que no saca a nadie de la lista negra)

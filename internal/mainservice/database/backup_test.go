@@ -37,6 +37,15 @@ func TestUpsertUpdate(t *testing.T) {
 				SetOnInsert: bson.M{"name": "Ana"}, Unset: bson.M{"type": ""}},
 			bson.M{"$set": bson.M{"lastname": "López", "updateat": "u", "backupat": testBackupAt},
 				"$setOnInsert": bson.M{"name": "Ana"}, "$unset": bson.M{"type": ""}}},
+		// Una fecha que nunca va hacia atrás (H-08): $max, y no también al crear
+		{"con un campo que sólo sube",
+			Upsert{UUID: "cli-1", Set: bson.M{"lastname": "López"}, Max: bson.M{"updateat": "u"},
+				SetOnInsert: bson.M{"name": "Ana", "updateat": "otra"}},
+			bson.M{"$set": bson.M{"lastname": "López", "backupat": testBackupAt},
+				"$max": bson.M{"updateat": "u"}, "$setOnInsert": bson.M{"name": "Ana"}}},
+		{"Set gana sobre Max",
+			Upsert{UUID: "cli-1", Set: bson.M{"updateat": "s"}, Max: bson.M{"updateat": "m"}},
+			bson.M{"$set": bson.M{"updateat": "s", "backupat": testBackupAt}}},
 		// Mongo rechaza una escritura con el mismo campo en dos operadores: sería un
 		// lote que nunca se guarda
 		{"un campo repetido queda en uno solo",

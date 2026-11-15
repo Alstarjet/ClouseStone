@@ -228,6 +228,11 @@ func TestUploadDataRejectsOnlyBadRecords(t *testing.T) {
 		{"pedido sin uuid", withBad("orders", `{"clientuuid":"cli-1"}`), "orders", "", "sin uuid"},
 		{"pedido null", withBad("orders", `null`), "orders", "", "sin uuid"},
 		{"monto del pago como texto", withBad("payments", `{"uuid":"pag-2","amount":"150"}`), "payments", "pag-2", `"amount"`},
+		// H-04: un descuento de más de 100 % dejaba un cargo negativo que bajaba la deuda
+		{"cargo con descuento de 210 %", withBad("charges", `{"uuid":"car-2","discount":210,"subtotal":210.55,"finalprice":-231.6,"status":"active"}`), "charges", "car-2", "descuento fuera de 0 a 100"},
+		{"cargo con descuento negativo", withBad("charges", `{"uuid":"car-2","discount":-5,"subtotal":100,"finalprice":105,"status":"active"}`), "charges", "car-2", "descuento fuera de 0 a 100"},
+		{"cargo con total negativo", withBad("charges", `{"uuid":"car-2","discount":0,"subtotal":-50,"finalprice":-50,"status":"active"}`), "charges", "car-2", "total negativo"},
+		{"pedido con descuento de 150 %", withBad("orders", `{"uuid":"ped-2","discount":150,"subtotal":80,"finalprice":-40,"status":"active"}`), "orders", "ped-2", "descuento fuera de 0 a 100"},
 		{"un pago que no es un objeto", withBad("payments", `"pag-2"`), "payments", "", "el registro llegó como texto"},
 	}
 	for _, tt := range tests {
@@ -259,6 +264,32 @@ func TestUploadDataRejectsOnlyBadRecords(t *testing.T) {
 				if w := store.written()[coll]; !reflect.DeepEqual(w, []string{uuid}) {
 					t.Errorf("%s guardados = %v; se esperaba [%s]", coll, w, uuid)
 				}
+			}
+		})
+	}
+}
+
+// H-04: un cargo o pedido con el descuento al 100 % (regalo) se guarda, y uno
+// borrado o cancelado pasa aunque sus montos estén mal, para que siempre se pueda
+// deshacer el que quedó mal.
+func TestUploadDataAcceptsChargesThatCanBeUndone(t *testing.T) {
+	tests := []struct {
+		name, collection, record, uuid string
+	}{
+		{"cargo con 100 % de descuento", "charges", `{"uuid":"car-2","discount":100,"subtotal":80,"finalprice":0,"status":"active"}`, "car-2"},
+		{"cargo negativo ya borrado", "charges", `{"uuid":"car-2","discount":210,"subtotal":210.55,"finalprice":-231.6,"status":"deleted"}`, "car-2"},
+		{"pedido negativo cancelado", "orders", `{"uuid":"ped-2","discount":150,"subtotal":80,"finalprice":-40,"status":"cancelled"}`, "ped-2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore("Amethyst")
+			rec := serveFake(store, withBad(tt.collection, tt.record))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("código = %d; se esperaba 200 (cuerpo: %s)", rec.Code, rec.Body)
+			}
+			want := []string{tt.uuid, goodUUIDs[tt.collection]}
+			if got := store.written()[tt.collection]; !reflect.DeepEqual(got, want) {
+				t.Errorf("%s guardados = %v; se esperaba %v", tt.collection, got, want)
 			}
 		})
 	}

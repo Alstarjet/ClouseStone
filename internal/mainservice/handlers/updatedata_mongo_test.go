@@ -490,6 +490,31 @@ func TestUploadDataChangedFieldsKeepOtherDevices(t *testing.T) {
 	}
 }
 
+// H-08: B estuvo sin internet y respalda después una edición que hizo antes que la
+// de A. Su campo se guarda (queda el último respaldo), pero updateat no regresa a
+// la hora de B: se queda la más reciente.
+func TestUploadDataUpdateAtNeverGoesBack(t *testing.T) {
+	db := mongotest.Connect(t)
+	user := registerPaidUser(t, db, testEmail)
+	mustUpload(t, db, testEmail, clientUpload(t, "Ana", "López", ""))
+
+	withTime := func(body, updateat string) string {
+		return strings.Replace(body, `"updateat":"2026-10-30T15:04:05Z"`, `"updateat":"`+updateat+`"`, 1)
+	}
+	fromA := withTime(clientUpload(t, "Ana", "López", "", "name"), "2026-10-30T17:30:45Z")
+	fromB := withTime(clientUpload(t, "Ana", "López Ruiz", "", "lastname"), "2026-10-30T17:30:18Z")
+	mustUpload(t, db, testEmail, fromA)
+	mustUpload(t, db, testEmail, fromB)
+
+	c := storedClient(t, db, user.ID)
+	if c.Lastname != "López Ruiz" {
+		t.Errorf("apellido = %q; se esperaba el de B", c.Lastname)
+	}
+	if want := time.Date(2026, 10, 30, 17, 30, 45, 0, time.UTC); !c.UpdateAt.Equal(want) {
+		t.Errorf("updateat = %v; se esperaba %v (la edición más reciente, la de A)", c.UpdateAt, want)
+	}
+}
+
 func TestUploadDataClientTypeChanges(t *testing.T) {
 	blacklisted := clientUpload(t, "Ana", "López", "blacklist")
 	tests := []struct {

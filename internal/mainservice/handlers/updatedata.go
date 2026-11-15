@@ -214,10 +214,29 @@ func acceptClient(client models.Client) (database.Upsert, error) {
 	return clients.Upsert(client)
 }
 
+// Montos que no puede tener un cargo o pedido vigente (H-04 de las pruebas del
+// 14-nov-2026): un descuento de 210 % dejaba un cargo de −$231.60 que bajaba la
+// deuda del cliente y llegaba a todos los dispositivos de la cuenta.
+var (
+	errDiscount      = errors.New("descuento fuera de 0 a 100")
+	errNegativeTotal = errors.New("total negativo")
+)
+
 // acceptCharge sirve para cargos y pedidos (los pedidos usan el modelo Charge).
+// Un cargo o pedido vigente debe tener el descuento entre 0 y 100 (es un
+// porcentaje) y el total (finalprice) en cero o más. Uno borrado o cancelado
+// pasa igual, para que siempre se pueda deshacer uno que quedó mal.
 func acceptCharge(charge models.Charge) (database.Upsert, error) {
 	if charge.UUID == "" {
 		return database.Upsert{}, errNoUUID
+	}
+	if charge.Status != "deleted" && charge.Status != "cancelled" {
+		if charge.Discount < 0 || charge.Discount > 100 {
+			return database.Upsert{}, errDiscount
+		}
+		if charge.FinalPrice < 0 {
+			return database.Upsert{}, errNegativeTotal
+		}
 	}
 	return database.FullUpsert(charge.UUID, charge)
 }
@@ -255,7 +274,8 @@ func rejectReason(err error) string {
 			typeErr.Field, jsonValueName(typeErr.Value), goTypeName(typeErr.Type))
 	case errors.As(err, &timeErr):
 		return fmt.Sprintf("fecha inválida %q: se espera fecha y hora RFC 3339 (p. ej. 2026-11-11T10:00:00Z)", timeErr.Value)
-	case errors.Is(err, errNoUUID), errors.Is(err, clients.ErrUnknownField), errors.Is(err, clients.ErrPhoneType):
+	case errors.Is(err, errNoUUID), errors.Is(err, clients.ErrUnknownField), errors.Is(err, clients.ErrPhoneType),
+		errors.Is(err, errDiscount), errors.Is(err, errNegativeTotal):
 		return err.Error()
 	default:
 		return "formato inválido: " + err.Error()
