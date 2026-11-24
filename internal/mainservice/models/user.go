@@ -21,8 +21,9 @@ type User struct {
 	TermsAcceptedAt *time.Time `bson:"termsacceptedat,omitempty" json:"-"`
 	TermsVersion    string     `bson:"termsversion,omitempty" json:"-"`
 	// Vigencia del plan de pago: cuándo vence. Se pone a mano junto con el plan
-	// (typeclient) al recibir el pago; vacía = sin vencimiento. Al vencer, el plan
-	// también se cambia a mano. json:"-" impide que el registro la escriba.
+	// (typeclient) al recibir el pago; vacía = sin vencimiento. Al vencer, el barrido
+	// semanal (/internal/plans/expire, database.ExpirePaidPlans) pasa la cuenta a la
+	// versión gratis y conserva la fecha. json:"-" impide que el registro la escriba.
 	PlanExpiresAt *time.Time `bson:"planexpiresat,omitempty" json:"-"`
 	// Tope de clientes propio de la cuenta, para ampliarle el plan de pago sin
 	// cambiar el código (ver AccountLimit). Se pone a mano en la base; json:"-"

@@ -28,6 +28,9 @@ func NewRouter(server *Server) *mux.Router {
 	router.Handle("/catalog/kits", AuthMiddleware(handlers.CatalogKits(catalog))).Methods(http.MethodGet)
 	router.Handle("/catalog/kits/{slug}", AuthMiddleware(handlers.CatalogKit(catalog))).Methods(http.MethodGet)
 
+	// Rutas internas: sólo Cloud Scheduler (schedulerMiddleware.go).
+	router.Handle("/internal/plans/expire", SchedulerMiddleware(handlers.ExpirePlans(server.mongoDB))).Methods(http.MethodPost)
+
 	router.Handle("/register", handlers.Register(server.mongoDB)).Methods(http.MethodPost)
 	router.Handle("/login", withTimeLimit(loginTimeLimit, handlers.Login(server.mongoDB))).Methods(http.MethodPost)
 	// Obsoleto: igual que /login (ya no hay límite de dispositivos); se conserva para versiones viejas de la app.
